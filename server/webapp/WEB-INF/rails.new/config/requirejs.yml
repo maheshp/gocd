@@ -17,6 +17,7 @@ paths:
   string: 'lib/underscore.string'
   string-plus: 'lib/string-plus'
   domready: 'lib/requirejs.domReady'
+  shellwords: 'lib/shellwords'
   modernizr: 'vendor/modernizr'
   foundation: 'foundation/foundation'
   foundation.abide: 'foundation/foundation.abide'

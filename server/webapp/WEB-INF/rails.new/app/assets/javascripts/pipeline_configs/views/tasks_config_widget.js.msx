@@ -17,10 +17,11 @@
 define([
   'mithril', 'lodash', 'jquery', 'angular',
   '../helpers/form_helper', '../helpers/dragula_config',
-  '../models/tasks', '../models/pluggable_tasks', 'js-routes'
+  '../models/tasks', '../models/pluggable_tasks', 'js-routes',
+  './lookup_command_widget', '../models/argument'
 ], function (m, _, $, angular,
              f, dragulaConfig,
-             Tasks, PluggableTasks, Routes) {
+             Tasks, PluggableTasks, Routes, LookupCommandWidget, Argument) {
 
   var TaskViews = {
     base: {
@@ -84,19 +85,55 @@ define([
     },
 
     exec: {
+      controller: function(args) {
+        var self  = this;
+        self.task = args.task;
+
+        this.toggleArgs = function () {
+          self.task.toggleArgs();
+        };
+      },
+
       view: function (ctrl, args) {
         var task = args.task;
+        var vm = Argument.vm(ctrl.task.args());
+        var arguments = function () {
+          if (task.args().isList()) {
+            return (
+              <f.column size={8}>
+                <f.textareaWithLabel attrName="data"
+                                     model={vm}
+                                     label="Args"
+                                     size={12}/>
+                <f.link onclick={ctrl.toggleArgs.bind(ctrl)}>Single</f.link>
+              </f.column>)
+          }
+          return (
+            <f.column size={8}>
+              <f.inputWithLabel attrName='data'
+                                model={vm}
+                                label="Args"
+                                size={12}/>
+              <f.link onclick={ctrl.toggleArgs.bind(ctrl)}>Multi</f.link>
+            </f.column>)
+
+        };
+
         return (
           <TaskViews.base {...args}>
             <f.row>
-              <f.inputWithLabel attrName='command'
-                                model={task}/>
-              <f.inputWithLabel attrName='args'
-                                model={task}/>
-              <f.inputWithLabel attrName='workingDirectory'
-                                model={task}
-                                end={true}/>
+              <f.column size={4}>
+                <f.inputWithLabel attrName='command'
+                                  model={task}
+                                  size={12}/>
+                <f.inputWithLabel attrName='workingDirectory'
+                                  model={task}
+                                  end={true}
+                                  size={12}/>
+              </f.column>
+              {arguments()}
             </f.row>
+            <LookupCommandWidget model={task}/>
           </TaskViews.base>
         );
       }

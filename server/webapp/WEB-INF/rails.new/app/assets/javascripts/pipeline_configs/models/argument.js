@@ -40,19 +40,8 @@ define(['mithril', 'lodash', 'shellwords'], function (m, _, shellwords) {
   };
 
   Argument.toString = function (args) {
-    var hasSpace = function (word) {
-      return word.indexOf(" ") !== -1;
-    };
-
-    var hasSingleQuotes = function(word) {
-      return word.indexOf("'") !== -1;
-    };
-
     return _.map(args, function (arg) {
-      if (hasSpace(arg) || hasSingleQuotes(arg)) {
-        return ["\"", arg, "\""].join('');
-      }
-      return arg;
+      return shellwords.escape(arg);
     }).join(' ');
   };
 

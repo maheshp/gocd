@@ -70,11 +70,10 @@ define(['lodash', 'pipeline_configs/models/argument'], function (_, Argument) {
     it('should join a list of args', function () {
       var args = [
         "-c",
-        "ls",
         "ssh node 'cd /path/to/dir;puppet apply manifest.pp'"
       ];
 
-      expect(Argument.toString(args)).toEqual("-c ls \"ssh node 'cd /path/to/dir;puppet apply manifest.pp'\"");
+      expect(Argument.toString(args)).toEqual("-c ssh\\ node\\ \\'cd\\ /path/to/dir\\;puppet\\ apply\\ manifest.pp\\'");
     });
   });
 
@@ -82,11 +81,10 @@ define(['lodash', 'pipeline_configs/models/argument'], function (_, Argument) {
     it('should pasre an argument string to list', function () {
       var expectedArgs = [
         "-c",
-        "ls",
         "ssh node 'cd /path/to/dir;puppet apply manifest.pp'"
       ];
 
-      expect(Argument.toList("-c ls \"ssh node 'cd /path/to/dir;puppet apply manifest.pp'\"")).toEqual(expectedArgs);
+      expect(Argument.toList("-c ssh\\ node\\ \\'cd\\ /path/to/dir\\;puppet\\ apply\\ manifest.pp\\'")).toEqual(expectedArgs);
     })
   });
 

@@ -308,6 +308,24 @@
                 margin-top:   -2px;
               }
             }
+            .toggle {
+              width: 24px;
+              height: 25px;
+              display: inline-block;
+              overflow: hidden;
+              text-indent: -100px;
+              position: absolute;
+              cursor: pointer;
+              top: 27px;
+              &.single {
+                background: image-url('icon_singleline.png') no-repeat 0px 0px;
+                background-size: contain;
+              }
+              &.multi {
+                background: image-url('icon_multiline.png') no-repeat 0px 0px;
+                background-size: contain;
+              }
+            }
             textarea {
               min-height: 98px
             }

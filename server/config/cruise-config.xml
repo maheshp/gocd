@@ -11,28 +11,74 @@
       </admins>
     </security>
   </server>
-  <pipelines group="first">
-    <authorization>
-      <view>
-        <user>operate</user>
-      </view>
-      <admins>
-        <user>operate</user>
-      </admins>
-    </authorization>
-    <pipeline name="up42">
+  <pipelines group="test">
+    <pipeline name="build">
       <materials>
-        <hg url="../manual-testing/ant_hg/dummy" dest="dest_dir" materialName="dummyhg" />
+        <git url="/Users/maheshp/work/go/gocd" />
       </materials>
-      <stage name="up42_stage">
+      <stage name="defaultStage">
         <jobs>
-          <job name="up42_job">
+          <job name="defaultJob">
             <tasks>
-              <exec command="ls" />
+              <exec command="ls">
+                <arg>-al</arg>
+              </exec>
+            </tasks>
+          </job>
+        </jobs>
+      </stage>
+    </pipeline>
+    <pipeline name="unit">
+      <materials>
+        <pipeline pipelineName="build" stageName="defaultStage" />
+      </materials>
+      <stage name="defaultStage">
+        <jobs>
+          <job name="defaultJob">
+            <tasks>
+              <exec command="ls">
+                <arg>-al</arg>
+              </exec>
+            </tasks>
+          </job>
+        </jobs>
+      </stage>
+    </pipeline>
+    <pipeline name="func">
+      <materials>
+        <pipeline pipelineName="build" stageName="defaultStage" />
+      </materials>
+      <stage name="defaultStage">
+        <jobs>
+          <job name="defaultJob">
+            <tasks>
+              <exec command="ls">
+                <arg>-al</arg>
+              </exec>
+            </tasks>
+          </job>
+        </jobs>
+      </stage>
+    </pipeline>
+    <pipeline name="deploy">
+      <materials>
+        <pipeline pipelineName="func" stageName="defaultStage" />
+        <pipeline pipelineName="unit" stageName="defaultStage" materialName="unit" />
+      </materials>
+      <stage name="defaultStage">
+        <jobs>
+          <job name="defaultJob">
+            <tasks>
+              <exec command="ls">
+                <arg>-al</arg>
+              </exec>
             </tasks>
           </job>
         </jobs>
       </stage>
     </pipeline>
   </pipelines>
+  <agents>
+    <agent hostname="maheshp.local" ipaddress="10.4.23.68" uuid="b86dddd9-b092-433e-8b8e-e7652493d363" />
+  </agents>
 </cruise>

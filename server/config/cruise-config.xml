@@ -36,10 +36,15 @@
         <jobs>
           <job name="defaultJob">
             <tasks>
-              <exec command="ls">
-                <arg>-al</arg>
+              <exec command="/bin/bash">
+                <arg>-c</arg>
+                <arg>echo $GO_PIPELINE_COUNTER &gt; $GO_PIPELINE_COUNTER-unit.txt</arg>
+                <runif status="passed" />
               </exec>
             </tasks>
+            <artifacts>
+              <artifact src="*-unit.txt" dest="units/" />
+            </artifacts>
           </job>
         </jobs>
       </stage>

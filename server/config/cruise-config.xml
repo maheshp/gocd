@@ -28,9 +28,10 @@
         </jobs>
       </stage>
     </pipeline>
-    <pipeline name="unit">
+    <pipeline name="QA">
       <materials>
         <pipeline pipelineName="build" stageName="defaultStage" />
+        <git url="/Users/maheshp/work/go/gocd" materialName="some" />
       </materials>
       <stage name="defaultStage">
         <jobs>
@@ -49,9 +50,10 @@
         </jobs>
       </stage>
     </pipeline>
-    <pipeline name="func">
+    <pipeline name="Perf">
       <materials>
         <pipeline pipelineName="build" stageName="defaultStage" />
+        <git url="/Users/maheshp/work/go/gocd" materialName="some" />
       </materials>
       <stage name="defaultStage">
         <jobs>
@@ -67,8 +69,9 @@
     </pipeline>
     <pipeline name="deploy">
       <materials>
-        <pipeline pipelineName="func" stageName="defaultStage" />
-        <pipeline pipelineName="unit" stageName="defaultStage" materialName="unit" />
+        <pipeline pipelineName="QA" stageName="defaultStage" />
+        <pipeline pipelineName="Perf" stageName="defaultStage" materialName="unit" />
+        <git url="/Users/maheshp/work/go/gocd" materialName="some" />
       </materials>
       <stage name="defaultStage">
         <jobs>

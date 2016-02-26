@@ -172,6 +172,7 @@ Go::Application.routes.draw do
       get ':pipeline_name/:pipeline_counter/build_cause' => 'pipelines#build_cause', constraints: PIPELINE_LOCATOR_CONSTRAINTS, as: :build_cause
     end
 
+    get 'history/:pipeline_name' => 'pipelines_history#index'
     get ':action' => 'pipelines#:action', constraints: {:action => /index|show|build_cause|select_pipelines/}
     post ':action' => 'pipelines#:action', constraints: {:action => /select_pipelines|show/}, as: :pipeline
   end

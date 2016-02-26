@@ -18,6 +18,7 @@ class ApplicationController < ActionController::Base
   include Services
   include JavaImports
   include RailsLocalizer
+  include ::NotLoadedByDefault::HelperForAuthentication
 
   # Prevent CSRF attacks by raising an exception.
   # For APIs, you may want to use :null_session instead.

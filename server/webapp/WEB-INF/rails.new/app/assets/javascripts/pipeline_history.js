@@ -51,7 +51,7 @@ PipelineHistoryPage.prototype = {
     },
     switchToPage: function(pipelineName, pageNumber) {
         var start = (pageNumber - 1) * paginator.perPage;
-        var url = contextPath + "/pipelineHistory.json?pipelineName=" + pipelineName + "&start=" + start;
+        var url = "pipelines/history/" + pipelineName + "/details?start=" + start;
         dashboard_periodical_executer.setUrl(url);
         dashboard_periodical_executer.fireNow();
     },

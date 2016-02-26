@@ -96,6 +96,7 @@ public class PipelineHistoryServiceTest {
     @Mock private PipelineLockService pipelineLockService;
     @Mock public PipelinePauseService pipelinePauseService;
     @Mock public FeatureToggleService featureToggleService;
+    @Mock private PipelineScheduleQueue pipelineScheduleQueue;
     private PipelineHistoryService pipelineHistoryService;
     private static final Username USERNAME = new Username(new CaseInsensitiveString("bar"));
     private PipelineConfig config;
@@ -110,7 +111,7 @@ public class PipelineHistoryServiceTest {
                 JobDurationStrategy.ALWAYS_ZERO,
                 mock(TriggerMonitor.class),
                 pipelineTimeline,
-                pipelineUnlockService, schedulingCheckerService, pipelineLockService, pipelinePauseService);
+                pipelineUnlockService, schedulingCheckerService, pipelineLockService, pipelinePauseService, pipelineScheduleQueue);
         config = CRUISE_CONFIG.pipelineConfigByName(new CaseInsensitiveString("pipeline"));
     }
 

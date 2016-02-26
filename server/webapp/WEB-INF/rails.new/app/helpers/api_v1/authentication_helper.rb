@@ -16,55 +16,48 @@
 
 module ApiV1
   module AuthenticationHelper
+    include ::BaseAuthenticationHelper
+
     def check_user_and_404
-      return unless security_service.isSecurityEnabled()
-      if current_user.try(:isAnonymous)
-        Rails.logger.info("User '#{current_user.getUsername}' attempted to perform an unauthorized action!")
+      verify_user_and_404 do
         render_not_found_error
       end
     end
 
     def check_user_and_401
-      return unless security_service.isSecurityEnabled()
-      if current_user.try(:isAnonymous)
-        Rails.logger.info("User '#{current_user.getUsername}' attempted to perform an unauthorized action!")
+      verify_user_and_401 do
         render_unauthorized_error
       end
     end
 
     def check_user_can_see_pipeline
-      return unless security_service.isSecurityEnabled()
-      unless security_service.hasViewPermissionForPipeline(current_user, params[:pipeline_name])
-        Rails.logger.info("User '#{current_user.getUsername}' attempted to perform an unauthorized action!")
+      verify_user_can_see_pipeline do
         render_unauthorized_error
       end
     end
 
     def check_admin_user_and_401
-      return unless security_service.isSecurityEnabled()
-      unless security_service.isUserAdmin(current_user)
-        Rails.logger.info("User '#{current_user.getUsername}' attempted to perform an unauthorized action!")
+      verify_admin_user_and_401 do
         render_unauthorized_error
       end
     end
 
     def verify_content_type_on_post
       if [:put, :post, :patch].include?(request.request_method_symbol) && !request.raw_post.blank? && request.content_mime_type != :json
-        render json_hal_v1: { message: "You must specify a 'Content-Type' of 'application/json'" }, status: :unsupported_media_type
+        render json_hal_v1: {message: "You must specify a 'Content-Type' of 'application/json'"}, status: :unsupported_media_type
       end
     end
 
     def render_not_found_error
-      render :json_hal_v1 => { :message => 'Either the resource you requested was not found, or you are not authorized to perform this action.' }, :status => 404
+      render :json_hal_v1 => {:message => 'Either the resource you requested was not found, or you are not authorized to perform this action.'}, :status => 404
     end
 
     def render_bad_request(exception)
-      render :json_hal_v1 => { :message => "Your request could not be processed. #{exception.message}" }, :status => 400
+      render :json_hal_v1 => {:message => "Your request could not be processed. #{exception.message}"}, :status => 400
     end
 
     def render_unauthorized_error
-      render :json_hal_v1 => { :message => 'You are not authorized to perform this action.' }, :status => 401
+      render :json_hal_v1 => {:message => 'You are not authorized to perform this action.'}, :status => 401
     end
-
   end
 end

@@ -1,0 +1,116 @@
+<% @view_title = "Pipeline Activity" %>
+<% pipeline_name_escaped = json_escape(@pipeline_name) %>
+
+<!-- START -->
+<style type="text/css">
+.pipeline-history-group .wrapper .onHover .detail,
+.pipeline-history-group .wrapper .onHover .rerun,
+.pipeline-history-group .wrapper .onHover .disabled-rerun
+{
+    display:block;
+    zoom: 1;
+}
+</style>
+<![endif]-->
+<textarea rows="0" cols="0" id='pipeline-history-list-template' style="display: none;">
+<%= render :partial => 'pipeline_history_list_template', :locals => {:scope => {:pipeline_name => pipeline_name_escaped,
+                                                                                  :pipeline_comment_feature_enabled => @pipeline_comment_feature_enabled}} -%>
+</textarea>
+<div id="yui-main">
+    <div class="yui-b">
+        <!-- breadcrumbs -->
+      <% $current_page="pipeline_history" %>
+                <!-- /breadcrumbs -->
+
+        
+
+<div id="intro" style="display: none;">
+<b class="page-intro-arrow"></b>
+<button id="page-intro-toggle-button" title="Close the description.">Close</button>        <p>This view shows you all build activity that has occured in your pipeline over time.
+            Click on a stage in the configuration panel to view activity only within that stage.
+            You can also manually approve stages from this screen to force the next stage to run.
+            <a class="more" target="_blank" title="Learn more from help documentation" href="http://www.go.cd/documentation/user/current/navigation/pipeline_activity_page.html">more...</a>
+        </p>
+        
+
+</div>        <!-- pipeline start -->
+
+        <div id="pipeline-history">
+            Loading...
+            <img src="<%= image_path 'spinner.gif' %>" alt="loading..."/>
+        </div>
+
+                
+      <% previous_page = "pipelineHistoryPage.switchToPage('#{pipeline_name_escaped}', paginator.currentPage - 1)" %>
+      <% next_page = "pipelineHistoryPage.switchToPage('#{pipeline_name_escaped}', paginator.currentPage + 1)" %>
+      <% page = "pipelineHistoryPage.switchToPage('#{pipeline_name_escaped}', ${% page.pageNumber %})" %>
+
+<textarea id="page-links-template" style="display:none;">
+{if pagination && paginator.totalPages > 1}
+    {if paginator.hasPrevious()}
+        <a href="javascript:void(0)" id="page-previous" class="pagination-previous" onclick="<%= previous_page.html_safe %>">Previous</a>
+    {else}
+        Previous
+    {/if}
+    {for page in paginator.pages}
+        {if page.isLink() }
+            {if page.pageNumber == paginator.currentPage}
+                <span class="page-num highlight-warning">${% page.pageNumber %}</span>
+            {else}
+                <a href="javascript:void(0)" id="page_${% page.pageNumber %}" onclick="<%= page.html_safe %>" class="page-num">${% page.pageNumber %}</a>
+            {/if}
+        {/if}
+        {if page.isSuspension() }
+            ...
+        {/if}
+    {/for}
+    {if paginator.hasNext()}
+        <a href="javascript:void(0)" id="page-next" class="pagination-next" onclick="<%= next_page.html_safe %>">Next</a>
+    {else}
+        Next
+    {/if}
+{/if}
+</textarea>
+<div id="page_links" class="pages">
+</div>
+        <!-- pipeline end -->
+    </div>
+</div>
+</div>
+
+<!-- end bd -->
+
+
+<div id="trans_message" style="position:absolute;display:none">
+    <b class="rtop" style="display:block;background-color: transparent;">
+       <b class="r1"></b>
+       <b class="r2"></b>
+       <b class="r3"></b>
+       <b class="r4"></b>
+    </b>
+    <div class="transparent_message" id="trans_content"></div>
+    <b class="rbottom" style="display:block;background-color: transparent;">
+        <b class="r4"></b>
+        <b class="r3"></b>
+        <b class="r2"></b>
+        <b class="r1"></b>
+    </b>    
+</div>
+<script type="text/javascript">
+    var pipelineHistoryPage = new PipelineHistoryPage();
+    var pipelineActions = new PipelineActions();
+    var stageActions = new StageActions();
+    var paginator = new Paginator();
+
+    var dashboard_periodical_executer = new DashboardPeriodicalExecuter('pipelines/history/<%= pipeline_name_escaped %>/details');
+    var pipelineHistoryObserver = new PipelineHistoryObserver('history');
+    dashboard_periodical_executer.register(pipelineHistoryObserver);
+
+    dashboard_periodical_executer.start();
+
+    <% if(@pipeline_comment_feature_enabled) %>
+      var PipelineHistoryComment = initPipelineHistoryComment(jQuery, Modalbox, dashboard_periodical_executer);
+    <% end %>
+    </script>
+<!-- END -->
+

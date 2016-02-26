@@ -16,6 +16,8 @@
 
 package com.thoughtworks.go.server.service;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.thoughtworks.go.config.CaseInsensitiveString;
 import com.thoughtworks.go.config.GoConfigDao;
 import com.thoughtworks.go.fixture.PipelineWithMultipleStages;
@@ -29,9 +31,7 @@ import com.thoughtworks.go.util.GoConfigFileHelper;
 import org.hamcrest.core.Is;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -42,6 +42,7 @@ import org.springframework.web.servlet.ModelAndView;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -56,10 +57,11 @@ import static org.junit.Assert.assertThat;
         "classpath:WEB-INF/applicationContext-acegi-security.xml",
         "classpath:WEB-INF/spring-rest-servlet.xml"
 })
-public class PipelineHistoryControllerIntegrationTest {
+public class PipelineHistoryServicePipelineHistoryJsonIntegrationTest {
     @Autowired private GoConfigDao goConfigDao;
     @Autowired private GoConfigService goConfigService;
     @Autowired private PipelineHistoryController controller;
+    @Autowired private PipelineHistoryService pipelineHistoryService;
     @Autowired private ScheduleHelper scheduleHelper;
 	@Autowired private DatabaseAccessHelper dbHelper;
     @Autowired private MaterialRepository materialRepository;
@@ -155,27 +157,12 @@ public class PipelineHistoryControllerIntegrationTest {
         assertThat("Should create group for the coming pipeline", groups.size(), is(1));
     }
 
-    @Test
-    public void shouldDisplayExceptionPageWhenPipelineIsNotFound() throws Exception {
-        ModelAndView list = controller.list("Un-available");
-        assertThat(list.getViewName(), is("exceptions_page"));
-        assertThat(list.getModel().get("errorMessage"), Is.<Object>is("Pipeline 'Un-available' not found."));
-    }
-
-    @Test
-    public void shouldDisplayPipelineHistoryPage() throws Exception {
-        ModelAndView list = controller.list(fixture.pipelineName);
-        assertThat(list.getViewName(), is("pipeline/pipeline_history"));
-        assertThat(list.getModel().get("pipelineName").toString(), is(fixture.pipelineName));
-    }
-
     private String getItemInJson(Map jsonMap, String key) {
         return (String) jsonMap.get(key);
     }
 
     private Map requestPipelineHistoryPage() throws Exception {
-        ModelAndView modelAndView = controller.list(fixture.pipelineName, 10, 0, response, request);
-        return (Map) modelAndView.getModel().get("json");
+        String modelAndView = pipelineHistoryService.pipelineHistoryJson(fixture.pipelineName, 10, 0, null);
+        return new Gson().fromJson(modelAndView, new TypeToken<HashMap<String, Object>>() {}.getType());
     }
-
 }

@@ -16,6 +16,7 @@
 
 package com.thoughtworks.go.server.service;
 
+import com.google.gson.Gson;
 import com.thoughtworks.go.config.*;
 import com.thoughtworks.go.domain.PipelineDependencyGraphOld;
 import com.thoughtworks.go.domain.PipelineGroups;
@@ -32,13 +33,12 @@ import com.thoughtworks.go.server.domain.PipelineTimeline;
 import com.thoughtworks.go.server.domain.Username;
 import com.thoughtworks.go.server.domain.user.PipelineSelections;
 import com.thoughtworks.go.server.persistence.MaterialRepository;
+import com.thoughtworks.go.server.presentation.models.PipelineHistoryJsonPresentationModel;
 import com.thoughtworks.go.server.scheduling.TriggerMonitor;
-import com.thoughtworks.go.server.service.result.HttpLocalizedOperationResult;
-import com.thoughtworks.go.server.service.result.HttpOperationResult;
-import com.thoughtworks.go.server.service.result.OperationResult;
-import com.thoughtworks.go.server.service.result.ServerHealthStateOperationResult;
+import com.thoughtworks.go.server.service.result.*;
 import com.thoughtworks.go.server.service.support.toggle.Toggles;
 import com.thoughtworks.go.server.util.Pagination;
+import com.thoughtworks.go.server.util.UserHelper;
 import com.thoughtworks.go.serverhealth.HealthStateScope;
 import com.thoughtworks.go.serverhealth.HealthStateType;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -63,6 +63,7 @@ public class PipelineHistoryService implements PipelineInstanceLoader {
     private PipelineLockService pipelineLockService;
     private PipelinePauseService pipelinePauseService;
     private static final String NOT_AUTHORIZED_TO_VIEW_PIPELINE = "Not authorized to view pipeline";
+    private PipelineScheduleQueue pipelineScheduleQueue;
 
     @Autowired
     public PipelineHistoryService(PipelineDao pipelineDao,
@@ -76,7 +77,8 @@ public class PipelineHistoryService implements PipelineInstanceLoader {
                                   PipelineTimeline pipelineTimeline,
                                   PipelineUnlockApiService pipelineUnlockService,
                                   SchedulingCheckerService schedulingCheckerService, PipelineLockService pipelineLockService,
-                                  PipelinePauseService pipelinePauseService) {
+                                  PipelinePauseService pipelinePauseService,
+                                  PipelineScheduleQueue pipelineScheduleQueue) {
         this.pipelineDao = pipelineDao;
         this.stageDao = stageDao;
         this.goConfigService = goConfigService;
@@ -90,6 +92,7 @@ public class PipelineHistoryService implements PipelineInstanceLoader {
         this.schedulingCheckerService = schedulingCheckerService;
         this.pipelineLockService = pipelineLockService;
         this.pipelinePauseService = pipelinePauseService;
+        this.pipelineScheduleQueue = pipelineScheduleQueue;
     }
 
     public int totalCount(String pipelineName) {
@@ -175,6 +178,45 @@ public class PipelineHistoryService implements PipelineInstanceLoader {
 
 		return new PipelineStatusModel(isCurrentlyLocked, isSchedulable, pipelinePauseInfo);
 	}
+
+    public String pipelineHistoryJson(String pipelineName, Integer perPageParam, Integer startParam, LocalizedOperationResult result) {
+        PipelineConfig pipelineConfig = null;
+        try {
+            pipelineConfig = goConfigService.pipelineConfigNamed(new CaseInsensitiveString(pipelineName));
+        } catch (PipelineNotFoundException e) {
+            result.notFound(LocalizedMessage.string("PIPELINE_NOT_FOUND", pipelineName), HealthStateType.general(HealthStateScope.forPipeline(pipelineName)));
+        }
+
+        String username = CaseInsensitiveString.str(UserHelper.getUserName().getUsername());
+
+        Pagination pagination = null;
+        try {
+            pagination = Pagination.pageStartingAt(startParam, totalCount(pipelineName), perPageParam);
+        } catch (Exception e) {
+            result.badRequest(LocalizedMessage.string(e.getMessage()));
+        }
+
+        PipelinePauseInfo pauseInfo = pipelinePauseService.pipelinePauseInfo(pipelineName);
+        boolean hasBuildCauseInBuffer = pipelineScheduleQueue.hasBuildCause(CaseInsensitiveString.str(pipelineConfig.name()));
+        PipelineInstanceModels pipelineHistory = load(pipelineName, pagination, username, true);
+
+        boolean hasForcedBuildCause = pipelineScheduleQueue.hasForcedBuildCause(pipelineName);
+        return new Gson().toJson(new PipelineHistoryJsonPresentationModel(
+                pauseInfo,
+                pipelineHistory,
+                pipelineConfig,
+                pagination, canForce(pipelineConfig, username),
+                hasForcedBuildCause, hasBuildCauseInBuffer, canPause(pipelineConfig, username)).toJson());
+    }
+
+    private boolean canPause(PipelineConfig pipelineConfig, String username) {
+        return securityService.hasOperatePermissionForPipeline(new CaseInsensitiveString(username), CaseInsensitiveString.str(pipelineConfig.name()));
+    }
+
+    private boolean canForce(PipelineConfig pipelineConfig, String username) {
+        return schedulingCheckerService.canManuallyTrigger(pipelineConfig, username,
+                new ServerHealthStateOperationResult());
+    }
 
     private void populatePipelineInstanceModel(Username username, boolean populateCanRun, PipelineConfig pipelineConfig, PipelineInstanceModel pipelineInstanceModel) {
         populatePipelineInstanceModel(pipelineConfig, pipelineInstanceModel);

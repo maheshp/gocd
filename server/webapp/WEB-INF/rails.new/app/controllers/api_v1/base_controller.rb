@@ -20,7 +20,7 @@ module ApiV1
     class BadRequest < StandardError
     end
 
-    include AuthenticationHelper
+    include ApiV1::AuthenticationHelper
 
     FORMATS                = [:json_hal_v1]
     DEFAULT_FORMAT         = FORMATS.last

@@ -25,6 +25,7 @@
 #set($_page_title="$pipelineName")
 #parse("shared/_header.vm")
 
+<!-- START -->
 <style type="text/css">
 .pipeline-history-group .wrapper .onHover .detail,
 .pipeline-history-group .wrapper .onHover .rerun,
@@ -86,5 +87,6 @@
     var PipelineHistoryComment = initPipelineHistoryComment(jQuery, Modalbox, dashboard_periodical_executer);
     #end
 </script>
+<!-- END -->
 
 #parse("shared/_footer.vm")

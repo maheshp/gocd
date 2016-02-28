@@ -24,7 +24,7 @@ module NotLoadedByDefault
       end
     end
 
-    def check_user_and_401
+    def verify_user_and_401
       return unless security_service.isSecurityEnabled()
       if current_user.try(:isAnonymous)
         Rails.logger.info("User '#{current_user.getUsername}' attempted to perform an unauthorized action!")

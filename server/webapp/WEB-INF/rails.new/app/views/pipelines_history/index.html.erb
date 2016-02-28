@@ -110,8 +110,7 @@
 
     dashboard_periodical_executer.start();
 
-    //TODO: fix this
-    <% if($pipeline_comment_feature_toggle_key) %>
+    <% if(@pipeline_comment_feature_enabled) %>
       var PipelineHistoryComment = initPipelineHistoryComment(jQuery, Modalbox, dashboard_periodical_executer);
     <% end %>
     </script>

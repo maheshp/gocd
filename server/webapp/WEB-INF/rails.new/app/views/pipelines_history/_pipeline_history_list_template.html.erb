@@ -137,7 +137,7 @@
                         {if stage.scheduled == 'true'}
                             <div id="stage-detail-${% pipeline.counterOrLabel %}-${% stage.stageName %}" class="${% pipelineHistoryPage.getState(stage.stageStatus) %}-stage">
                              {if stage.stageStatus == 'Cancelled'}
-                                <img alt="" src="<%= asset_path 'stage_bar_cancelled_icon.png' %>">
+                                <img alt="" src="<%= asset_path 'g9/stage_bar_cancelled_icon.png' %>">
                              {/if}
                                 {if stage.getCanRun == 'true'}
                                 <a id="rerun-${% data.pipelineName %}-${% pipeline.counterOrLabel %}-${% stage.stageName %}" class="rerun" title="rerun this stage"

@@ -29,6 +29,7 @@
                     <h3 class="title entity_title">
                         <%= link_to @pipeline.name(), pipeline_edit_path(:pipeline_name => params[:pipeline_name], :current_tab => 'general'), :class => 'wrapped_word' %>
                     </h3>
+                  <%= link_to 'Try the new pipeline edit page', edit_admin_pipeline_config_path(@pipeline.name())%>
                 </div>
                 <div class="sub_tabs_container <%= params[:current_tab] -%>">
                     <%= render :partial => "admin/pipelines/pipeline_navigation", :locals=> {:scope=> {:pipeline => @pipeline}} %>

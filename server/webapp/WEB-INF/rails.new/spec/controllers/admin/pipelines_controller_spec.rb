@@ -18,7 +18,6 @@ require 'spec_helper'
 
 describe Admin::PipelinesController do
   before do
-    controller.stub(:populate_health_messages)
     controller.stub(:pipeline_pause_service).with().and_return(@pipeline_pause_service = double('Pipeline Pause Service'))
   end
 
@@ -141,9 +140,6 @@ describe Admin::PipelinesController do
       render_views
 
       before do
-        controller.stub(:populate_health_messages) do
-          controller.instance_variable_set :@current_server_health_states, com.thoughtworks.go.serverhealth.ServerHealthStates.new
-        end
         @go_config_service.stub(:isSecurityEnabled).and_return(false)
       end
 
@@ -301,8 +297,7 @@ describe Admin::PipelinesController do
 
       get :new
 
-      job_configs = JobConfigs.new
-      job_configs.add(JobConfig.new(CaseInsensitiveString.new("defaultJob")))
+      job_configs = JobConfigs.new([JobConfig.new(CaseInsensitiveString.new("defaultJob"), Resources.new, ArtifactPlans.new, com.thoughtworks.go.config.Tasks.new([AntTask.new].to_java(Task)))].to_java(JobConfig))
       pipeline = PipelineConfig.new(CaseInsensitiveString.new(""), MaterialConfigs.new, [StageConfig.new(CaseInsensitiveString.new("defaultStage"), job_configs)].to_java(StageConfig))
       assigns[:pipeline_group].should == BasicPipelineConfigs.new([pipeline].to_java(PipelineConfig))
       assigns[:pipeline].should == pipeline
@@ -512,7 +507,7 @@ describe Admin::PipelinesController do
       assigns[:errors][0].should == "empty pipeline name"
       assigns[:groups_json].should == [{"group" => "group1"}, {"group" => "group2"}].to_json
       assigns[:pipeline_stages_json].should == "[{\"pipeline\":\"pipeline2\",\"stage\":\"stage-2\"}]"
-      job_configs = JobConfigs.new([JobConfig.new(CaseInsensitiveString.new("defaultJob"))].to_java(JobConfig))
+      job_configs = JobConfigs.new([JobConfig.new(CaseInsensitiveString.new("defaultJob"), Resources.new, ArtifactPlans.new, com.thoughtworks.go.config.Tasks.new([AntTask.new].to_java(Task)))].to_java(JobConfig))
       stage_config = StageConfig.new(CaseInsensitiveString.new("defaultStage"), job_configs)
       pipeline_config = PipelineConfig.new(CaseInsensitiveString.new(""), com.thoughtworks.go.config.materials.MaterialConfigs.new, [stage_config].to_java(StageConfig))
       assigns[:pipeline].should == pipeline_config
@@ -639,7 +634,7 @@ describe Admin::PipelinesController do
       @pluggable_task_service.stub(:validate)
       task_view_service = double('Task View Service')
       controller.stub(:task_view_service).and_return(task_view_service)
-      @new_task = PluggableTask.new("", PluginConfiguration.new("curl.plugin", "1.0"), Configuration.new([ConfigurationPropertyMother.create("Url", false, nil)].to_java(ConfigurationProperty)))
+      @new_task = PluggableTask.new( PluginConfiguration.new("curl.plugin", "1.0"), Configuration.new([ConfigurationPropertyMother.create("Url", false, nil)].to_java(ConfigurationProperty)))
       task_view_service.should_receive(:taskInstanceFor).with("pluggableTask").and_return(@new_task)
       @go_config_service.should_receive(:getCurrentConfig).twice.and_return(Cloner.new().deepClone(@cruise_config))
       stub_save_for_success
@@ -665,7 +660,7 @@ describe Admin::PipelinesController do
       @pluggable_task_service.stub(:validate) do |task|
         task.getConfiguration().getProperty("key").addError("key", "some error")
       end
-      @new_task = PluggableTask.new("", PluginConfiguration.new("curl.plugin", "1.0"), Configuration.new([ConfigurationPropertyMother.create("key", false, nil)].to_java(ConfigurationProperty)))
+      @new_task = PluggableTask.new( PluginConfiguration.new("curl.plugin", "1.0"), Configuration.new([ConfigurationPropertyMother.create("key", false, nil)].to_java(ConfigurationProperty)))
       task_view_service.should_receive(:taskInstanceFor).with("pluggableTask").and_return(@new_task)
       task_view_service.should_receive(:getViewModel).with(@new_task, "new").and_return(TaskViewModel.new(nil, nil, nil))
       task_view_service.should_receive(:getModelOfType).with(anything, anything).and_return(TaskViewModel.new(nil, nil, nil))

@@ -1,5 +1,5 @@
 ##########################################################################
-# Copyright 2015 ThoughtWorks, Inc.
+# Copyright 2016 ThoughtWorks, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ describe ApiV2::AgentRepresenter do
     expect(actual_json).to have_links(:self, :find, :doc)
     expect(actual_json).to have_link(:self).with_url('http://test.host/api/agents/some-uuid')
     expect(actual_json).to have_link(:find).with_url('http://test.host/api/agents/:uuid')
-    expect(actual_json).to have_link(:doc).with_url('http://api.go.cd/#agents')
+    expect(actual_json).to have_link(:doc).with_url('https://api.go.cd/#agents')
 
     actual_json.delete(:_links)
     expect(actual_json).to eq(agent_hash)
@@ -84,6 +84,26 @@ describe ApiV2::AgentRepresenter do
 
       expect(actual_json[:agent_config_state]).to eq(state)
     end
+  end
+
+  it 'renders config errors during serialization' do
+    presenter   = ApiV2::AgentRepresenter.new(agent_with_config_errors)
+    actual_json = presenter.to_hash(url_builder: UrlBuilder.new)
+
+    expected_errors = {
+        ip_address: ["'IP' is an invalid IP address."],
+        resources: [
+        "Resource name 'foo%' is not valid. Valid names much match '^[-\\w\\s|.]*$'",
+        "Resource name 'bar$' is not valid. Valid names much match '^[-\\w\\s|.]*$'"
+      ]
+    }
+    expect(actual_json[:errors]).to eq(expected_errors)
+  end
+
+  it "should handle nil agent config" do
+    presenter   = ApiV2::AgentRepresenter.new(nil)
+    actual_json = presenter.to_hash(url_builder: UrlBuilder.new)
+    expect(actual_json).to be_nil
   end
 
   def agent_hash

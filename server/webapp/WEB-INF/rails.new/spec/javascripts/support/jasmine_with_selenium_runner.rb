@@ -14,8 +14,36 @@ class JasmineWithSeleniumRunner
   end
 
   def run
+    tmp_dir = Rails.root.join('tmp/jasmine').to_s
+    RakeFileUtils.rm_rf tmp_dir
+    RakeFileUtils.mkdir_p tmp_dir
+
+    if Config::CONFIG['host_os'] =~ /windows|cygwin|bccwin|cygwin|djgpp|mingw|mswin|wince/i
+      tmp_dir = tmp_dir.gsub(::File::SEPARATOR, ::File::ALT_SEPARATOR || '\\')
+    end
+
+    uri       = URI(jasmine_server_url)
+    uri.query = nil
+
+    wget_command = "cd #{tmp_dir} && wget #{uri} --timeout=120 --waitretry=2 --tries=10 --recursive --quiet"
+
+    RakeFileUtils.sh(wget_command) do |ok, res|
+      unless ok
+        $stderr.puts "wget exited with code #{res.exitstatus}"
+        RakeFileUtils.sh(wget_command) do |ok, res|
+          unless ok
+            $stderr.puts "wget exited with code #{res.exitstatus}"
+            $stderr.puts "There was a problem connecting to #{uri}, this may or may not cause tests to fail."
+          end
+        end
+      end
+    end
+
+    sleep 5 if ENV['GO_SERVER_URL']
     web_driver.navigate.to jasmine_server_url
+    sleep 5 if ENV['GO_SERVER_URL']
     wait_for_jasmine_to_start
+    sleep 5 if ENV['GO_SERVER_URL']
     wait_for_suites_to_finish_running
     formatter.format(get_results)
     formatter.done
@@ -27,11 +55,11 @@ class JasmineWithSeleniumRunner
   attr_reader :formatter, :config, :web_driver, :jasmine_server_url, :result_batch_size
 
   def jasmine_testing_started?
-    web_driver.execute_script "return jsApiReporter && jsApiReporter.started"
+    web_driver.execute_script "return window.jsApiReporter && window.jsApiReporter.started"
   end
 
   def jasmine_testing_finished?
-    web_driver.execute_script "return jsApiReporter && jsApiReporter.finished"
+    web_driver.execute_script "return window.jsApiReporter && window.jsApiReporter.finished"
   end
 
   def wait_for_jasmine_to_start

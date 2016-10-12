@@ -1,23 +1,20 @@
-/*************************GO-LICENSE-START*********************************
- * Copyright 2014 ThoughtWorks, Inc.
+/*
+ * Copyright 2016 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *************************GO-LICENSE-END***********************************/
+ */
 
 package com.thoughtworks.go.config;
-
-import java.util.HashMap;
-import java.util.Map;
 
 import com.rits.cloning.Cloner;
 import com.thoughtworks.go.config.preprocessor.ClassAttributeCache;
@@ -28,11 +25,15 @@ import com.thoughtworks.go.config.validation.NameTypeValidator;
 import com.thoughtworks.go.domain.BaseCollection;
 import com.thoughtworks.go.domain.ConfigErrors;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 /**
  * @understands abstracting a pipeline definition
  */
 @ConfigTag("pipeline")
-@ConfigCollection(value = StageConfig.class, asFieldName = "Stages")
+@ConfigCollection(value = StageConfig.class)
 public class PipelineTemplateConfig extends BaseCollection<StageConfig> implements Validatable, ParamsAttributeAware {
     private static final ClassAttributeCache.FieldCache FIELD_CACHE = new ClassAttributeCache.FieldCache();
     private static final Cloner CLONER = new Cloner();
@@ -69,10 +70,18 @@ public class PipelineTemplateConfig extends BaseCollection<StageConfig> implemen
     public void validate(ValidationContext validationContext) {
         validateTemplateName();
         validateStageNameUniqueness();
+        validateStageConfig(validationContext);
+    }
+
+    public void validateStageConfig(ValidationContext validationContext) {
+        ValidationContext contextForChildren = validationContext.withParent(this);
+        for(StageConfig stageConfig : this) {
+            stageConfig.validateTree(contextForChildren);
+        }
     }
 
     private void validateStageNameUniqueness() {
-        Map<String, StageConfig> stageNameMap = new HashMap<String, StageConfig>();
+        Map<String, StageConfig> stageNameMap = new HashMap<>();
         for (StageConfig stageConfig : this) {
             stageConfig.validateNameUniqueness(stageNameMap);
         }
@@ -94,6 +103,18 @@ public class PipelineTemplateConfig extends BaseCollection<StageConfig> implemen
 
     public StageConfig getStage(final CaseInsensitiveString stageName) {
         return findBy(stageName);
+    }
+
+    public List<StageConfig> getStages() {
+        return this;
+    }
+
+    public void setName(String name) {
+        setName(new CaseInsensitiveString(name));
+    }
+
+    public void setName(CaseInsensitiveString name) {
+        this.name = name;
     }
 
     public StageConfig findBy(final CaseInsensitiveString stageName) {
@@ -208,5 +229,9 @@ public class PipelineTemplateConfig extends BaseCollection<StageConfig> implemen
 
     public Authorization getAuthorization() {
         return authorization;
+    }
+
+    public List<ConfigErrors> getAllErrors() {
+        return ErrorCollector.getAllErrors(this);
     }
 }

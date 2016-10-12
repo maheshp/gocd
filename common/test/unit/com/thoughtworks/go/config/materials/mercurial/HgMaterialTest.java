@@ -1,25 +1,22 @@
-/*************************GO-LICENSE-START*********************************
- * Copyright 2014 ThoughtWorks, Inc.
+/*
+ * Copyright 2015 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *************************GO-LICENSE-END***********************************/
+ */
 
 package com.thoughtworks.go.config.materials.mercurial;
 
-import com.thoughtworks.go.domain.materials.Material;
-import com.thoughtworks.go.domain.materials.Modification;
-import com.thoughtworks.go.domain.materials.TestSubprocessExecutionContext;
-import com.thoughtworks.go.domain.materials.ValidationBean;
+import com.thoughtworks.go.domain.materials.*;
 import com.thoughtworks.go.domain.materials.mercurial.HgCommand;
 import com.thoughtworks.go.domain.materials.mercurial.StringRevision;
 import com.thoughtworks.go.helper.HgTestRepo;
@@ -28,7 +25,7 @@ import com.thoughtworks.go.helper.TestRepo;
 import com.thoughtworks.go.util.*;
 import com.thoughtworks.go.util.command.ConsoleResult;
 import com.thoughtworks.go.util.command.InMemoryStreamConsumer;
-import com.thoughtworks.go.util.json.JsonMap;
+
 import org.hamcrest.Matchers;
 import org.hamcrest.core.StringContains;
 import org.junit.After;
@@ -37,12 +34,10 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Date;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static com.thoughtworks.go.util.DateUtils.parseISO8601;
+import static com.thoughtworks.go.util.JsonUtils.from;
 import static com.thoughtworks.go.util.command.ProcessOutputStreamConsumer.inMemoryConsumer;
 import static java.lang.String.format;
 import static org.hamcrest.Matchers.not;
@@ -119,11 +114,15 @@ public class HgMaterialTest {
         File testFile = createNewFileInWorkingFolder();
 
         hgMaterial = MaterialsMother.hgMaterial("file://" + hgTestRepo.projectRepositoryUrl());
-        hgMaterial.updateTo(outputStreamConsumer, new StringRevision("0"), workingFolder, new TestSubprocessExecutionContext());
+        updateMaterial(hgMaterial, new StringRevision("0"));
 
         String workingUrl = new HgCommand(null, workingFolder, "default", hgTestRepo.url().forCommandline()).workingRepositoryUrl().outputAsString();
         assertThat(workingUrl, is(hgTestRepo.projectRepositoryUrl()));
         assertThat(testFile.exists(), is(true));
+    }
+
+    private void updateMaterial(HgMaterial hgMaterial, StringRevision revision) {
+        hgMaterial.updateTo(outputStreamConsumer, workingFolder, new RevisionContext(revision), new TestSubprocessExecutionContext());
     }
 
     @Test
@@ -181,26 +180,25 @@ public class HgMaterialTest {
 
     @Test
     public void shouldUpdateToSpecificRevision() throws Exception {
-        hgMaterial.updateTo(outputStreamConsumer, new StringRevision("0"), workingFolder, new TestSubprocessExecutionContext());
+        updateMaterial(hgMaterial, new StringRevision("0"));
         File end2endFolder = new File(workingFolder, "end2end");
         assertThat(end2endFolder.listFiles().length, is(3));
         assertThat(outputStreamConsumer.getStdOut(), is(not("")));
-
-        hgMaterial.updateTo(outputStreamConsumer, new StringRevision("1"), workingFolder, new TestSubprocessExecutionContext());
+        updateMaterial(hgMaterial, new StringRevision("1"));
         assertThat(end2endFolder.listFiles().length, is(4));
     }
 
     @Test
     public void shouldUpdateToDestinationFolder() throws Exception {
         hgMaterial.setFolder("dest");
-        hgMaterial.updateTo(outputStreamConsumer, new StringRevision("0"), workingFolder, new TestSubprocessExecutionContext());
+        updateMaterial(hgMaterial, new StringRevision("0"));
         File end2endFolder = new File(workingFolder, "dest/end2end");
         assertThat(end2endFolder.exists(), is(true));
     }
 
     @Test
     public void shouldLogRepoInfoToConsoleOutWithoutFolder() throws Exception {
-        hgMaterial.updateTo(outputStreamConsumer, new StringRevision("0"), workingFolder, new TestSubprocessExecutionContext());
+        updateMaterial(hgMaterial, new StringRevision("0"));
         assertThat(outputStreamConsumer.getStdOut(), containsString(
                 format("Start updating %s at revision %s from %s", "files", "0",
                         hgMaterial.getUrl())));
@@ -328,10 +326,10 @@ public class HgMaterialTest {
 
     @Test
     public void shouldBeAbleToConvertToJson() throws Exception {
-        JsonMap json = new JsonMap();
+        Map<String, Object> json = new LinkedHashMap<>();
         hgMaterial.toJson(json, new StringRevision("123"));
 
-        JsonValue jsonValue = JsonUtils.from(json);
+        JsonValue jsonValue = from(json);
         assertThat(jsonValue.getString("scmType"), is("Mercurial"));
         assertThat(new File(jsonValue.getString("location")), is(new File(hgTestRepo.projectRepositoryUrl())));
         assertThat(jsonValue.getString("action"), is("Modified"));

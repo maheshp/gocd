@@ -90,6 +90,13 @@ public class StageConfigMother {
         return custom(stageName, new Approval());
     }
 
+    public static StageConfig stageConfigWithEnvironmentVariable(String stageName) {
+        StageConfig stageConfig = StageConfigMother.stageConfig(stageName);
+        stageConfig.setVariables(EnvironmentVariablesConfigMother.environmentVariables());
+        stageConfig.getJobs().add(JobConfigMother.jobConfig());
+        return stageConfig;
+    }
+
     public static StageConfig stageConfigWithArtifact(String stageName, String jobName , ArtifactType artifactType){
         ArtifactPlans artifactPlansWithTests = new ArtifactPlans();
         artifactPlansWithTests.add(ArtifactPlan.create(artifactType, "src", "dest"));

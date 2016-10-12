@@ -1,5 +1,5 @@
 /*************************GO-LICENSE-START*********************************
- * Copyright 2014 ThoughtWorks, Inc.
+ * Copyright 2016 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import com.thoughtworks.go.domain.Pipeline;
 import com.thoughtworks.go.domain.Stage;
 import com.thoughtworks.go.helper.StubMultipartHttpServletRequest;
 import com.thoughtworks.go.server.dao.DatabaseAccessHelper;
+import com.thoughtworks.go.server.domain.Username;
 import com.thoughtworks.go.server.service.AgentRuntimeInfo;
 import com.thoughtworks.go.server.service.AgentService;
 import com.thoughtworks.go.server.service.ArtifactsService;
@@ -183,7 +184,9 @@ public class ArtifactsControllerIntegrationTest {
 
     @Test
     public void shouldReturn404WhenNoLatestBuildForPost() throws Exception {
-        ModelAndView mav = artifactsController.postArtifact(pipelineName, "latest", "stage", "1", "build2", null, "/foo.xml", 1, null);
+        request.addHeader("Confirm", "true");
+        StubMultipartHttpServletRequest multipartRequest = new StubMultipartHttpServletRequest(request);
+        ModelAndView mav = artifactsController.postArtifact(pipelineName, "latest", "stage", "1", "build2", null, "/foo.xml", 1, multipartRequest);
         assertValidContentAndStatus(mav, SC_NOT_FOUND, "Job " + pipelineName + "/latest/stage/1/build2 not found.");
     }
 
@@ -204,8 +207,8 @@ public class ArtifactsControllerIntegrationTest {
     }
 
     private Date updateHeardTime() throws Exception {
-        agentService.requestRegistration(AgentRuntimeInfo.fromServer(new AgentConfig("uuid", "localhost", "127.0.0.1"),
-                false, "/var/lib", 0L, "linux"));
+        agentService.requestRegistration(new Username("bob"), AgentRuntimeInfo.fromServer(new AgentConfig("uuid", "localhost", "127.0.0.1"),
+                false, "/var/lib", 0L, "linux", false));
         agentService.approve("uuid");
         artifactsController.putArtifact(pipelineName, "latest", "stage", null, "build2", null, "/foo.xml",
                 "uuid", request);
@@ -410,6 +413,32 @@ public class ArtifactsControllerIntegrationTest {
     }
 
     @Test
+    public void shouldPutConsoleOutput_withNoNewLineAtTheAtOfTheLog() throws Exception {
+        String log = "junit report\nstart\n....";
+        ModelAndView mav = putConsoleLogContent("cruise-output/console.log", log);
+
+        String consoleLogContent = FileUtils.readFileToString(file(consoleLogFile));
+        String[] lines = consoleLogContent.split("\n");
+        assertThat(lines.length, is(3));
+        assertThat(lines[0], is("junit report"));
+        assertThat(lines[1], is("start"));
+        assertThat(lines[2], is("...."));
+        assertStatus(mav, SC_OK);
+    }
+
+    @Test
+    public void shouldPutConsoleOutput_withoutNewLineChar() throws Exception {
+        String log = "....";
+        ModelAndView mav = putConsoleLogContent("cruise-output/console.log", log);
+
+        String consoleLogContent = FileUtils.readFileToString(file(consoleLogFile));
+        String[] lines = consoleLogContent.split("\n");
+        assertThat(lines.length, is(1));
+        assertThat(lines[0], is("...."));
+        assertStatus(mav, SC_OK);
+    }
+
+    @Test
     public void shouldReturnBuildOutputAsPlainText() throws Exception {
         String firstLine = "Chris sucks.\n";
         String secondLine = "Build succeeded.";
@@ -475,6 +504,7 @@ public class ArtifactsControllerIntegrationTest {
         FileUtils.writeStringToFile(checksumFile, "baz/foobar.html:FooMD5\n");
         MockMultipartFile artifactMultipart = new MockMultipartFile("file", new FileInputStream(fooFile));
         MockMultipartFile checksumMultipart = new MockMultipartFile("file_checksum", new FileInputStream(checksumFile));
+        request.addHeader("Confirm", "true");
         StubMultipartHttpServletRequest multipartRequest = new StubMultipartHttpServletRequest(request, artifactMultipart, checksumMultipart);
         postFileWithChecksum("baz/foobar.html", multipartRequest);
 
@@ -492,6 +522,7 @@ public class ArtifactsControllerIntegrationTest {
 
         MockMultipartFile artifactMultipart = new MockMultipartFile("file", new FileInputStream(fooFile));
         MockMultipartFile checksumMultipart = new MockMultipartFile("file_checksum", new FileInputStream(checksumFile));
+        request.addHeader("Confirm", "true");
         StubMultipartHttpServletRequest multipartRequest = new StubMultipartHttpServletRequest(request, artifactMultipart, checksumMultipart);
 
         postFileWithChecksum("baz/foobar.html", multipartRequest);
@@ -563,6 +594,7 @@ public class ArtifactsControllerIntegrationTest {
     private ModelAndView postFile(String requestFilename, String multipartFilename, InputStream stream,
                                   MockHttpServletResponse response) throws Exception {
         MockMultipartFile multipartFile = new MockMultipartFile(multipartFilename, stream);
+        request.addHeader("Confirm", "true");
         StubMultipartHttpServletRequest multipartRequest = new StubMultipartHttpServletRequest(request, multipartFile);
         return artifactsController.postArtifact(pipelineName, pipeline.getLabel(), "stage", "LATEST", "build", buildId,
                 requestFilename,

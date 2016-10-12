@@ -36,7 +36,6 @@ import com.thoughtworks.go.domain.materials.perforce.P4Client;
 import com.thoughtworks.go.domain.materials.perforce.P4MaterialInstance;
 import com.thoughtworks.go.security.GoCipher;
 import com.thoughtworks.go.util.*;
-import com.thoughtworks.go.util.GoConstants;
 import com.thoughtworks.go.util.command.ConsoleOutputStreamConsumer;
 import com.thoughtworks.go.util.command.EnvironmentVariableContext;
 import com.thoughtworks.go.util.command.InMemoryStreamConsumer;
@@ -95,6 +94,7 @@ public class P4Material extends ScmMaterial implements PasswordEncrypter, Passwo
         this.name = config.getName();
         this.autoUpdate = config.getAutoUpdate();
         this.filter = config.rawFilter();
+        this.invertFilter = config.getInvertFilter();
         setPassword(config.getPassword());
         this.useTickets = config.getUseTickets();
     }
@@ -109,22 +109,17 @@ public class P4Material extends ScmMaterial implements PasswordEncrypter, Passwo
     }
 
     @Override
-    public void checkout(File baseDir, Revision revision, SubprocessExecutionContext execCtx) {
-        InMemoryStreamConsumer output = ProcessOutputStreamConsumer.inMemoryConsumer();
-        this.updateTo(output, revision, baseDir, execCtx);
-    }
-    @Override
     public MaterialConfig config() {
-        return new P4MaterialConfig(serverAndPort, userName, getPassword(), useTickets, view == null ? null : view.getValue(), goCipher, name, autoUpdate, filter, folder);
+        return new P4MaterialConfig(serverAndPort, userName, getPassword(), useTickets, view == null ? null : view.getValue(), goCipher, name, autoUpdate, filter, invertFilter, folder);
     }
 
     public List<Modification> latestModification(File baseDir, final SubprocessExecutionContext execCtx) {
-        P4Client p4 = getP4(baseDir);
+        P4Client p4 = getP4(execCtx.isServer() ? baseDir : workingdir(baseDir));
         return p4.latestChange();
     }
 
     public List<Modification> modificationsSince(File baseDir, Revision revision, final SubprocessExecutionContext execCtx) {
-        P4Client p4 = getP4(baseDir);
+        P4Client p4 = getP4(execCtx.isServer() ? baseDir : workingdir(baseDir));
         return p4.changesSince(revision);
     }
 
@@ -155,11 +150,13 @@ public class P4Material extends ScmMaterial implements PasswordEncrypter, Passwo
         return p4;
     }
 
-    public void updateTo(ProcessOutputStreamConsumer outputConsumer, Revision revision, File baseDir, final SubprocessExecutionContext execCtx) {
-        boolean cleaned = cleanDirectoryIfRepoChanged(workingdir(baseDir), outputConsumer);
+    public void updateTo(ProcessOutputStreamConsumer outputConsumer, File baseDir, RevisionContext revisionContext, final SubprocessExecutionContext execCtx) {
+        File workingDir = execCtx.isServer() ? baseDir : workingdir(baseDir);
+        boolean cleaned = cleanDirectoryIfRepoChanged(workingDir, outputConsumer);
+        String revision = revisionContext.getLatestRevision().getRevision();
         try {
-            outputConsumer.stdOutput(format("[%s] Start updating %s at revision %s from %s", GoConstants.PRODUCT_NAME, updatingTarget(), revision.getRevision(), serverAndPort));
-            p4(baseDir, outputConsumer).sync(parseLong(revision.getRevision()), cleaned, outputConsumer);
+            outputConsumer.stdOutput(format("[%s] Start updating %s at revision %s from %s", GoConstants.PRODUCT_NAME, updatingTarget(), revision, serverAndPort));
+            p4(workingDir, outputConsumer).sync(parseLong(revision), cleaned, outputConsumer);
             outputConsumer.stdOutput(format("[%s] Done.\n", GoConstants.PRODUCT_NAME));
         } catch (Exception e) {
             bomb(e);
@@ -222,9 +219,9 @@ public class P4Material extends ScmMaterial implements PasswordEncrypter, Passwo
     /**
      * not for use externally, created for testing convenience
      */
-    P4Client _p4(File baseDir, ProcessOutputStreamConsumer consumer, boolean failOnError) throws Exception {
-        String clientName = clientName(baseDir);
-        return P4Client.fromServerAndPort(getFingerprint(), serverAndPort, userName, getPassword(), clientName,this.useTickets, workingdir(baseDir), p4view(clientName), consumer, failOnError);
+    P4Client _p4(File workDir, ProcessOutputStreamConsumer consumer, boolean failOnError) throws Exception {
+        String clientName = clientName(workDir);
+        return P4Client.fromServerAndPort(getFingerprint(), serverAndPort, userName, getPassword(), clientName,this.useTickets, workDir, p4view(clientName), consumer, failOnError);
     }
 
     @Override
@@ -235,9 +232,9 @@ public class P4Material extends ScmMaterial implements PasswordEncrypter, Passwo
 
     @Override
     public Map<String, Object> getAttributes(boolean addSecureFields) {
-        Map<String, Object> materialMap = new HashMap<String, Object>();
+        Map<String, Object> materialMap = new HashMap<>();
         materialMap.put("type", "perforce");
-        Map<String, Object> configurationMap = new HashMap<String, Object>();
+        Map<String, Object> configurationMap = new HashMap<>();
         configurationMap.put("url", serverAndPort);
         configurationMap.put("username", userName);
         if (addSecureFields) {

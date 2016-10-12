@@ -1,0 +1,64 @@
+{
+  "extends": ["eslint:recommended", "plugin:react/recommended"],
+  "env": {
+    "browser": true,
+    "amd": true,
+    "es6": true
+  },
+  "plugins": ["react", "requirejs"],
+  "settings": {
+    "react": {
+      "createClass": "createClass",
+      "pragma": "m",
+      "version": "15.0"
+    }
+  },
+  "globals": {
+    "it": true,
+    "describe": true,
+    "expect": true,
+    "beforeEach": true,
+    "afterEach": true,
+    "afterAll": true,
+    "beforeAll": true,
+    "xit": true,
+    "spyOn": true,
+    "jasmine": true,
+    "angular": true
+  },
+  "parserOptions": {
+    "ecmaFeatures": {
+      "jsx": true
+    }
+  },
+  "rules": {
+    "indent": [
+      "error",
+      2
+    ],
+    "eqeqeq": [
+      "error",
+      "always"
+    ],
+    "camelcase": [
+      "error"
+    ],
+    "linebreak-style": [
+      "error",
+      "unix"
+    ],
+    "quotes": [
+      "off"
+    ],
+    "semi": [
+      "error",
+      "always"
+    ],
+    "react/display-name": [
+      "off"
+    ],
+    "react/no-unknown-property": [
+      "off"
+    ]
+  }
+}

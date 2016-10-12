@@ -1,5 +1,5 @@
-/*************************GO-LICENSE-START*********************************
- * Copyright 2014 ThoughtWorks, Inc.
+/*
+ * Copyright 2016 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,31 +12,25 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *************************GO-LICENSE-END***********************************/
+ */
 
 package com.thoughtworks.go.server.materials;
 
 import com.thoughtworks.go.config.CruiseConfig;
 import com.thoughtworks.go.config.GoConfigWatchList;
-import com.thoughtworks.go.config.GoRepoConfigDataSource;
-import com.thoughtworks.go.config.PartialConfigUpdateCompletedListener;
-import com.thoughtworks.go.config.materials.mercurial.HgMaterial;
-import com.thoughtworks.go.config.remote.ConfigRepoConfig;
-import com.thoughtworks.go.config.remote.PartialConfig;
-import com.thoughtworks.go.domain.MaterialRevision;
-import com.thoughtworks.go.domain.MaterialRevisions;
+import com.thoughtworks.go.config.PipelineConfig;
 import com.thoughtworks.go.domain.PipelineGroups;
 import com.thoughtworks.go.domain.materials.Material;
 import com.thoughtworks.go.domain.materials.MaterialConfig;
 import com.thoughtworks.go.i18n.LocalizedMessage;
 import com.thoughtworks.go.listener.ConfigChangedListener;
+import com.thoughtworks.go.listener.EntityConfigChangedListener;
 import com.thoughtworks.go.server.domain.Username;
 import com.thoughtworks.go.server.materials.postcommit.PostCommitHookImplementer;
 import com.thoughtworks.go.server.materials.postcommit.PostCommitHookMaterialType;
 import com.thoughtworks.go.server.materials.postcommit.PostCommitHookMaterialTypeResolver;
 import com.thoughtworks.go.server.messaging.GoMessageListener;
 import com.thoughtworks.go.server.perf.MDUPerformanceLogger;
-import com.thoughtworks.go.server.persistence.MaterialRepository;
 import com.thoughtworks.go.server.service.GoConfigService;
 import com.thoughtworks.go.server.service.MaterialConfigConverter;
 import com.thoughtworks.go.server.service.result.HttpLocalizedOperationResult;
@@ -50,7 +44,6 @@ import org.apache.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.io.File;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Map;
@@ -66,7 +59,7 @@ import static java.lang.String.format;
  * @understands when to send requests to update a material on the database
  */
 @Service
-public class MaterialUpdateService implements GoMessageListener<MaterialUpdateCompletedMessage>, ConfigChangedListener  {
+public class MaterialUpdateService implements GoMessageListener<MaterialUpdateCompletedMessage>, ConfigChangedListener {
     private static final Logger LOGGER = Logger.getLogger(MaterialUpdateService.class);
 
     private final MaterialUpdateQueue updateQueue;
@@ -76,8 +69,8 @@ public class MaterialUpdateService implements GoMessageListener<MaterialUpdateCo
     private final SystemEnvironment systemEnvironment;
     private ServerHealthService serverHealthService;
 
-    private ConcurrentMap<Material, Date> inProgress = new ConcurrentHashMap<Material, Date>();
-    private ConcurrentMap<Material, Long> materialLastUpdateTimeMap = new ConcurrentHashMap<Material, Long>();
+    private ConcurrentMap<Material, Date> inProgress = new ConcurrentHashMap<>();
+    private ConcurrentMap<Material, Long> materialLastUpdateTimeMap = new ConcurrentHashMap<>();
 
     private final PostCommitHookMaterialTypeResolver postCommitHookMaterialType;
     private final MDUPerformanceLogger mduPerformanceLogger;
@@ -109,6 +102,17 @@ public class MaterialUpdateService implements GoMessageListener<MaterialUpdateCo
 
     public void initialize() {
         goConfigService.register(this);
+        goConfigService.register(pipelineConfigChangedListener());
+    }
+
+    protected EntityConfigChangedListener<PipelineConfig> pipelineConfigChangedListener() {
+        final MaterialUpdateService materialUpdateService = this;
+        return new EntityConfigChangedListener<PipelineConfig>() {
+            @Override
+            public void onEntityConfigChange(PipelineConfig pipelineConfig) {
+                materialUpdateService.onConfigChange(goConfigService.getCurrentConfig());
+            }
+        };
     }
 
     public void onTimer() {
@@ -136,12 +140,12 @@ public class MaterialUpdateService implements GoMessageListener<MaterialUpdateCo
                 return;
             }
             final PostCommitHookImplementer materialTypeImplementer = materialType.getImplementer();
-            final PipelineGroups allGroups = goConfigService.currentCruiseConfig().getGroups();
-            Set<Material> allUniquePostCommitSchedulableMaterials = materialConfigConverter.toMaterials(allGroups.getAllUniquePostCommitSchedulableMaterials());
+            final CruiseConfig cruiseConfig = goConfigService.currentCruiseConfig();
+            Set<Material> allUniquePostCommitSchedulableMaterials = materialConfigConverter.toMaterials(cruiseConfig.getAllUniquePostCommitSchedulableMaterials());
             final Set<Material> prunedMaterialList = materialTypeImplementer.prune(allUniquePostCommitSchedulableMaterials, attributes);
 
             if (prunedMaterialList.isEmpty()) {
-                result.notFound(LocalizedMessage.string("MATERIAL_NOT_FOUND"), HealthStateType.general(HealthStateScope.GLOBAL));
+                result.notFound(LocalizedMessage.string("MATERIAL_SUITABLE_FOR_NOTIFICATION_NOT_FOUND"), HealthStateType.general(HealthStateScope.GLOBAL));
                 return;
             }
 
@@ -225,7 +229,7 @@ public class MaterialUpdateService implements GoMessageListener<MaterialUpdateCo
     }
 
     private Set<HealthStateScope> toHealthStateScopes(Set<MaterialConfig> materialConfigs) {
-        Set<HealthStateScope> scopes = new HashSet<HealthStateScope>();
+        Set<HealthStateScope> scopes = new HashSet<>();
         for (MaterialConfig materialConfig : materialConfigs) {
             scopes.add(HealthStateScope.forMaterialConfig(materialConfig));
         }

@@ -1,5 +1,5 @@
 /*************************GO-LICENSE-START*********************************
- * Copyright 2014 ThoughtWorks, Inc.
+ * Copyright 2016 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -73,7 +73,7 @@ public class SvnLogXmlParserTest {
         String xml = FileUtil.readToEnd(stream);
         stream.close();
         SvnLogXmlParser parser = new SvnLogXmlParser();
-        List<Modification> revisions = parser.parse(xml, "", new SAXBuilder(false));
+        List<Modification> revisions = parser.parse(xml, "", new SAXBuilder());
 
         assertThat(revisions.size(), is(43));
 
@@ -90,7 +90,7 @@ public class SvnLogXmlParserTest {
     @Test
     public void shouldParse() throws ParseException {
         SvnLogXmlParser parser = new SvnLogXmlParser();
-        List<Modification> materialRevisions = parser.parse(XML, "", new SAXBuilder(false));
+        List<Modification> materialRevisions = parser.parse(XML, "", new SAXBuilder());
         assertThat(materialRevisions.size(), is(1));
         Modification mod = materialRevisions.get(0);
         assertThat(mod.getRevision(), is("3"));
@@ -118,12 +118,37 @@ public class SvnLogXmlParserTest {
                 + "   action=\"A\">/trunk/revision3.txt</path>\n"
                 + "</paths>\n"
                 + "</logentry>\n"
-                + "</log>", "", new SAXBuilder(false));
+                + "</log>", "", new SAXBuilder());
         assertThat(materialRevisions.size(), is(1));
         Modification mod = materialRevisions.get(0);
         assertThat(mod.getRevision(), is("3"));
         assertThat(mod.getComment(), is(nullValue()));
     }
+
+    @Test
+    public void shouldParseLogWithEmptyRevision() throws ParseException {
+        SvnLogXmlParser parser = new SvnLogXmlParser();
+        List<Modification> materialRevisions = parser.parse("<?xml version=\"1.0\"?>\n"
+                + "<log>\n"
+                + "<logentry\n"
+                + "   revision=\"2\">\n"
+                + "</logentry>\n"
+                + "<logentry\n"
+                + "   revision=\"3\">\n"
+                + "<author>cceuser</author>\n"
+                + "<date>2008-03-11T07:52:41.162075Z</date>\n"
+                + "<paths>\n"
+                + "<path\n"
+                + "   action=\"A\">/trunk/revision3.txt</path>\n"
+                + "</paths>\n"
+                + "</logentry>\n"
+                + "</log>", "", new SAXBuilder());
+        assertThat(materialRevisions.size(), is(1));
+        Modification mod = materialRevisions.get(0);
+        assertThat(mod.getRevision(), is("3"));
+        assertThat(mod.getComment(), is(nullValue()));
+    }
+    
 
     @Test
     public void shouldParseBJCruiseLogCorrectly() {
@@ -170,17 +195,17 @@ public class SvnLogXmlParserTest {
                 + "</log>";
 
         SvnLogXmlParser parser = new SvnLogXmlParser();
-        List<Modification> mods = parser.parse(firstChangeLog, ".", new SAXBuilder(false));
+        List<Modification> mods = parser.parse(firstChangeLog, ".", new SAXBuilder());
         assertThat(mods.get(0).getUserName(), is("yxchu"));
 
-        List<Modification> mods2 = parser.parse(secondChangeLog, ".", new SAXBuilder(false));
+        List<Modification> mods2 = parser.parse(secondChangeLog, ".", new SAXBuilder());
         assertThat(mods2.size(), is(2));
     }
 
     @Test
     public void shouldFilterModifiedFilesByPath() {
         SvnLogXmlParser parser = new SvnLogXmlParser();
-        List<Modification> materialRevisions = parser.parse(MULTIPLE_FILES, "/branch", new SAXBuilder(false));
+        List<Modification> materialRevisions = parser.parse(MULTIPLE_FILES, "/branch", new SAXBuilder());
 
         Modification mod = materialRevisions.get(0);
         List<ModifiedFile> files = mod.getModifiedFiles();
@@ -193,7 +218,7 @@ public class SvnLogXmlParserTest {
     @Test
     public void shouldGetAllModifiedFilesUnderRootPath() {
         SvnLogXmlParser parser = new SvnLogXmlParser();
-        List<Modification> materialRevisions = parser.parse(MULTIPLE_FILES, "", new SAXBuilder(false));
+        List<Modification> materialRevisions = parser.parse(MULTIPLE_FILES, "", new SAXBuilder());
 
         Modification mod = materialRevisions.get(0);
         List<ModifiedFile> files = mod.getModifiedFiles();
@@ -212,7 +237,7 @@ public class SvnLogXmlParserTest {
     public void shouldReportSvnOutputWhenErrorsHappen() {
         SvnLogXmlParser parser = new SvnLogXmlParser();
         try {
-            parser.parse("invalid xml", "", new SAXBuilder(false));
+            parser.parse("invalid xml", "", new SAXBuilder());
             fail("should have failed when invalid xml is parsed");
         } catch (Exception e) {
             assertThat(e.getMessage(), containsString("invalid xml"));
@@ -240,7 +265,7 @@ public class SvnLogXmlParserTest {
                 + "</commit>\n"
                 + "</entry>\n"
                 + "</info>";
-        final HashMap<String,String> map = svnLogXmlParser.parseInfoToGetUUID(svnInfoOutput, "http://gears.googlecode.com/svn/trunk", new SAXBuilder(false));
+        final HashMap<String,String> map = svnLogXmlParser.parseInfoToGetUUID(svnInfoOutput, "http://gears.googlecode.com/svn/trunk", new SAXBuilder());
         assertThat(map.size(), is(1));
         assertThat(map.get("http://gears.googlecode.com/svn/trunk"), is("fe895e04-df30-0410-9975-d76d301b4276"));
     }
@@ -248,6 +273,6 @@ public class SvnLogXmlParserTest {
     @Test(expected = RuntimeException.class)
     public void shouldThrowUpWhenSvnInfoOutputIsInvalidToMapUrlToUUID() {
         final SvnLogXmlParser svnLogXmlParser = new SvnLogXmlParser();
-        svnLogXmlParser.parseInfoToGetUUID("Svn threw up and it's drunk", "does not matter", new SAXBuilder(false));
+        svnLogXmlParser.parseInfoToGetUUID("Svn threw up and it's drunk", "does not matter", new SAXBuilder());
     }
 }

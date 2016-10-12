@@ -17,6 +17,7 @@ package com.thoughtworks.go.config;
 
 import com.thoughtworks.go.config.remote.ConfigOriginTraceable;
 import com.thoughtworks.go.config.remote.ConfigReposConfig;
+import com.thoughtworks.go.config.remote.PartialConfig;
 import com.thoughtworks.go.domain.*;
 import com.thoughtworks.go.domain.materials.MaterialConfig;
 import com.thoughtworks.go.domain.packagerepository.PackageDefinition;
@@ -39,6 +40,8 @@ import java.util.Set;
 public interface CruiseConfig extends Validatable, ConfigOriginTraceable {
     String WORKING_BASE_DIR = "pipelines/";
 
+    void merge(List<PartialConfig> partList, boolean forEdit);
+
     @PostConstruct
     void initializeServer();
 
@@ -47,10 +50,7 @@ public interface CruiseConfig extends Validatable, ConfigOriginTraceable {
 
     int schemaVersion();
 
-    /**
-     * Gets only elements of CruiseConfig which are defined locally.
-     */
-    CruiseConfig getLocal();
+    Set<MaterialConfig> getAllUniquePostCommitSchedulableMaterials();
 
     ConfigReposConfig getConfigRepos();
 
@@ -125,6 +125,8 @@ public interface CruiseConfig extends Validatable, ConfigOriginTraceable {
     void addPipelineWithoutValidation(String groupName, PipelineConfig pipelineConfig);
 
     void update(String groupName, String pipelineName, PipelineConfig pipeline);
+
+    void deletePipeline(PipelineConfig pipelineConfig);
 
     boolean exist(int pipelineIndex);
 
@@ -228,9 +230,13 @@ public interface CruiseConfig extends Validatable, ConfigOriginTraceable {
 
     Map<CaseInsensitiveString, List<CaseInsensitiveString>> templatesWithPipelinesForUser(String username);
 
+    List<CaseInsensitiveString> pipelinesAssociatedWithTemplate(CaseInsensitiveString templateName);
+
     boolean isArtifactCleanupProhibited(String pipelineName, String stageName);
 
     MaterialConfig materialConfigFor(String fingerprint);
+
+    MaterialConfig materialConfigFor(CaseInsensitiveString pipelineName, String fingerprint);
 
     String sanitizedGroupName(String name);
 
@@ -251,4 +257,22 @@ public interface CruiseConfig extends Validatable, ConfigOriginTraceable {
     boolean canDeletePackageRepository(PackageRepository repository);
 
     boolean canDeletePluggableSCMMaterial(SCM scmConfig);
+
+    List<PipelineConfig> getAllLocalPipelineConfigs();
+
+    void setPartials(List<PartialConfig> partials);
+
+    List<PartialConfig> getPartials();
+
+    List<PipelineConfig> getAllLocalPipelineConfigs(boolean excludeMembersOfRemoteEnvironments);
+
+    boolean isLocal();
+
+    /**
+     * Gets remote config parts currently active in this configuration.
+     * Note: It does NOT guarantee that these partials are valid.
+     */
+    List<PartialConfig> getMergedPartials();
+
+    CruiseConfig cloneForValidation();
 }

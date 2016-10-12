@@ -16,7 +16,7 @@
   <% end %>
 
   <!-- do add any more script tags unless you know what you're doing -->
-  <script src="/__spec__/helpers/require.js" type="text/javascript"></script>
+  <script src="/assets/require.js" type="text/javascript"></script>
 
 </head>
 <!-- TODO: turbolinks breaks spec filter links -->
@@ -26,6 +26,7 @@
 <script>
   <%
     require_config = YAML.load(File.read(Rails.root.join("config/requirejs.yml")))
+    require_config['waitSeconds'] = 30 if ENV['GO_SERVER_URL']
     require_config['baseUrl'] = 'assets'
     require_config['paths'].merge!(
       'jasmine'           => '/__jasmine__/jasmine',
@@ -54,7 +55,7 @@
   require.config(<%= JSON.pretty_generate(require_config) %>);
 </script>
 <script>
-  require(['jasmine-boot', 'jasmine-jquery', 'jasmine-mock-ajax'], function () {
+  require(['jasmine-boot', 'jasmine-jquery', 'jasmine-mock-ajax', 'foundation.util.mediaQuery'], function () {
     if (window.callPhantom) {
 
       function PhantomReporter() {
@@ -78,4 +79,10 @@
     });
   });
 </script>
+
+<!-- invisible container for element that contains the mithril app -->
+<div style="display: none">
+  <!-- mount your mithril app here -->
+  <div id='mithril-mount-point'></div>
+</div>
 </html>

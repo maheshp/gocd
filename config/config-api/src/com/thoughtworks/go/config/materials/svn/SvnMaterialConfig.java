@@ -1,30 +1,22 @@
-/*************************GO-LICENSE-START*********************************
- * Copyright 2014 ThoughtWorks, Inc.
+/*
+ * Copyright 2016 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *************************GO-LICENSE-END***********************************/
+ */
 
 package com.thoughtworks.go.config.materials.svn;
 
-import java.util.Map;
-import javax.annotation.PostConstruct;
-
-import com.thoughtworks.go.config.CaseInsensitiveString;
-import com.thoughtworks.go.config.ConfigAttribute;
-import com.thoughtworks.go.config.ConfigTag;
-import com.thoughtworks.go.config.ParamsAttributeAware;
-import com.thoughtworks.go.config.PasswordEncrypter;
-import com.thoughtworks.go.config.ValidationContext;
+import com.thoughtworks.go.config.*;
 import com.thoughtworks.go.config.materials.Filter;
 import com.thoughtworks.go.config.materials.PasswordAwareMaterial;
 import com.thoughtworks.go.config.materials.ScmMaterialConfig;
@@ -35,8 +27,13 @@ import com.thoughtworks.go.util.StringUtil;
 import com.thoughtworks.go.util.command.UrlArgument;
 import org.bouncycastle.crypto.InvalidCipherTextException;
 
+import javax.annotation.PostConstruct;
+import java.util.Map;
+
 import static com.thoughtworks.go.util.ExceptionUtils.bomb;
 import static com.thoughtworks.go.util.ExceptionUtils.bombIfNull;
+import static java.lang.String.format;
+import static org.apache.commons.lang.StringUtils.isNotEmpty;
 
 @ConfigTag(value = "svn", label = "Subversion")
 public class SvnMaterialConfig extends ScmMaterialConfig implements ParamsAttributeAware, PasswordEncrypter, PasswordAwareMaterial {
@@ -62,8 +59,12 @@ public class SvnMaterialConfig extends ScmMaterialConfig implements ParamsAttrib
     private final GoCipher goCipher;
     public static final String TYPE = "SvnMaterial";
 
+    public SvnMaterialConfig() {
+        this(new GoCipher());
+    }
+
     private SvnMaterialConfig(GoCipher goCipher) {
-        super("SvnMaterial");
+        super(TYPE);
         this.goCipher = goCipher;
     }
 
@@ -83,19 +84,35 @@ public class SvnMaterialConfig extends ScmMaterialConfig implements ParamsAttrib
         setPassword(password);
         this.checkExternals = checkExternals;
     }
+    public SvnMaterialConfig(String url, String userName, boolean checkExternals, GoCipher goCipher) {
+        this(goCipher);
+        bombIfNull(url, "null url");
+        this.url = new UrlArgument(url);
+        this.userName = userName;
+        this.checkExternals = checkExternals;
+    }
 
     public SvnMaterialConfig(String url, String userName, String password, boolean checkExternals, String folder) {
         this(url, userName, password, checkExternals);
         this.folder = folder;
     }
 
-    public SvnMaterialConfig(UrlArgument url, String userName, String password, boolean checkExternals, GoCipher goCipher, boolean autoUpdate, Filter filter, String folder, CaseInsensitiveString name) {
-        super(name, filter, folder, autoUpdate, TYPE, new ConfigErrors());
+    public SvnMaterialConfig(UrlArgument url, String userName, String password, boolean checkExternals, GoCipher goCipher, boolean autoUpdate, Filter filter, boolean invertFilter, String folder, CaseInsensitiveString name) {
+        super(name, filter, invertFilter, folder, autoUpdate, TYPE, new ConfigErrors());
         this.url = url;
         this.userName = userName;
         this.checkExternals = checkExternals;
         this.goCipher = goCipher;
         this.setPassword(password);
+    }
+
+    //for tests
+    protected SvnMaterialConfig(UrlArgument url, String password, String encryptedPassword, GoCipher goCipher, Filter filter, boolean invertFilter, String folder) {
+        super(new CaseInsensitiveString("test"), filter, invertFilter, folder, true, TYPE, new ConfigErrors());
+        this.url = url;
+        this.password = password;
+        this.encryptedPassword = encryptedPassword;
+        this.goCipher = goCipher;
     }
 
     public GoCipher getGoCipher() {
@@ -105,6 +122,10 @@ public class SvnMaterialConfig extends ScmMaterialConfig implements ParamsAttrib
     @Override
     public void setPassword(String password) {
         resetPassword(password);
+    }
+
+    public void setCleartextPassword(String password) {
+        this.password = password;
     }
 
     private void resetPassword(String passwordToSet) {
@@ -144,7 +165,7 @@ public class SvnMaterialConfig extends ScmMaterialConfig implements ParamsAttrib
     public String currentPassword() {
         try {
             return StringUtil.isBlank(encryptedPassword) ? null : this.goCipher.decrypt(encryptedPassword);
-        } catch (InvalidCipherTextException e) {
+        } catch (Exception e) {
             throw new RuntimeException("Could not decrypt the password to get the real password", e);
         }
     }
@@ -152,6 +173,10 @@ public class SvnMaterialConfig extends ScmMaterialConfig implements ParamsAttrib
     @Override
     public String getEncryptedPassword() {
         return encryptedPassword;
+    }
+
+    public void setEncryptedPassword(String encryptedPassword) {
+        this.encryptedPassword = encryptedPassword;
     }
 
     @PostConstruct
@@ -162,7 +187,14 @@ public class SvnMaterialConfig extends ScmMaterialConfig implements ParamsAttrib
 
     @Override
     public String getUrl() {
-        return url == null ? null : url.forCommandline();
+        return url != null ? url.forCommandline() : null;
+    }
+
+    @Override
+    public void setUrl(String url) {
+        if (url != null) {
+            this.url = new UrlArgument(url);
+        }
     }
 
     @Override
@@ -181,9 +213,21 @@ public class SvnMaterialConfig extends ScmMaterialConfig implements ParamsAttrib
     }
 
     @Override
-    protected void validateConcreteScmMaterial(ValidationContext validationContext) {
+    public void validateConcreteScmMaterial() {
         if (StringUtil.isBlank(url.forDisplay())) {
             errors().add(URL, "URL cannot be blank");
+        }
+        if (isNotEmpty(this.password) && isNotEmpty(this.encryptedPassword)) {
+            addError("password", "You may only specify `password` or `encrypted_password`, not both!");
+            addError("encryptedPassword", "You may only specify `password` or `encrypted_password`, not both!");
+        }
+        if (isNotEmpty(this.encryptedPassword)) {
+            try {
+                currentPassword();
+            } catch (Exception e) {
+                addError("encryptedPassword", format("Encrypted password value for svn material with url '%s' is invalid. This usually happens when the cipher text is modified to have an invalid value.",
+                       this.getUriForDisplay()));
+            }
         }
     }
 
@@ -271,7 +315,15 @@ public class SvnMaterialConfig extends ScmMaterialConfig implements ParamsAttrib
             String passwordToSet = (String) map.get(PASSWORD);
             resetPassword(passwordToSet);
         }
-        this.checkExternals  = "true".equals(map.get(CHECK_EXTERNALS));
+        this.checkExternals = "true".equals(map.get(CHECK_EXTERNALS));
+    }
+
+    public void setCheckExternals(boolean checkExternals) {
+        this.checkExternals = checkExternals;
+    }
+
+    public void setUserName(String userName) {
+        this.userName = userName;
     }
 
     @Override

@@ -1,5 +1,5 @@
-/*************************GO-LICENSE-START*********************************
- * Copyright 2014 ThoughtWorks, Inc.
+/*
+ * Copyright 2016 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *************************GO-LICENSE-END***********************************/
+ */
 
 package com.thoughtworks.go.config;
 
@@ -25,7 +25,7 @@ import com.thoughtworks.go.domain.config.Admin;
 public class AdminRole implements Admin {
     @ConfigValue private CaseInsensitiveString name;
     private ConfigErrors configErrors = new ConfigErrors();
-    public static final String NAME = "name";
+    public static final String ROLES = "roles";
 
     public AdminRole() {
     }
@@ -39,7 +39,7 @@ public class AdminRole implements Admin {
     }
 
     public boolean isSameAs(Admin admin, List<Role> memberRoles) {
-        if (this.name == null) {
+        if (this.name == null || memberRoles == null) {
             return false;
         }
         for (Role memberRole : memberRoles) {
@@ -76,11 +76,7 @@ public class AdminRole implements Admin {
 
         AdminRole adminRole = (AdminRole) o;
 
-        if (!name.equals(adminRole.name)) {
-            return false;
-        }
-
-        return true;
+        return name.equals(adminRole.name);
     }
 
     public int hashCode() {
@@ -95,9 +91,9 @@ public class AdminRole implements Admin {
         if (validationContext.isWithinTemplates()) {
             return;
         }
-        SecurityConfig securityConfig = validationContext.getCruiseConfig().server().security();
+        SecurityConfig securityConfig = validationContext.getServerSecurityConfig();
         if (!securityConfig.isRoleExist(this.name)) {
-            configErrors.add(NAME, String.format("Role \"%s\" does not exist!", this.name));
+            configErrors.add(ROLES, String.format("Role \"%s\" does not exist.", this.name));
         }
     }
 

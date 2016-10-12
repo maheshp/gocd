@@ -1,30 +1,33 @@
-/*************************GO-LICENSE-START*********************************
- * Copyright 2015 ThoughtWorks, Inc.
+/*
+ * Copyright 2016 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *************************GO-LICENSE-END***********************************/
+ */
 
 package com.thoughtworks.go.server.controller;
 
 import com.thoughtworks.go.config.*;
 import com.thoughtworks.go.plugin.infra.commons.PluginsZip;
 import com.thoughtworks.go.server.domain.Username;
+import com.thoughtworks.go.server.service.AgentConfigService;
 import com.thoughtworks.go.server.service.AgentRuntimeInfo;
 import com.thoughtworks.go.server.service.AgentService;
 import com.thoughtworks.go.server.service.GoConfigService;
 import com.thoughtworks.go.server.service.result.HttpOperationResult;
-import com.thoughtworks.go.util.*;
-import com.thoughtworks.go.util.json.JsonMap;
+import com.thoughtworks.go.util.ReflectionUtil;
+import com.thoughtworks.go.util.StringUtil;
+import com.thoughtworks.go.util.SystemEnvironment;
+import com.thoughtworks.go.util.TestFileUtil;
 import org.apache.commons.io.FileUtils;
 import org.junit.Before;
 import org.junit.Test;
@@ -32,19 +35,13 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.web.servlet.ModelAndView;
 
-import javax.servlet.http.HttpServletResponse;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
 
-import static com.thoughtworks.go.util.GoConstants.ERROR_FOR_JSON;
 import static org.hamcrest.Matchers.is;
-import static org.jmock.Expectations.equal;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.*;
 
 public class AgentRegistrationControllerTest {
@@ -63,10 +60,12 @@ public class AgentRegistrationControllerTest {
     private AgentRegistrationController controller;
     private SystemEnvironment systemEnvironment;
     private PluginsZip pluginsZip;
+    private AgentConfigService agentConfigService;
 
     @Before
     public void setUp() throws Exception {
         agentService = mock(AgentService.class);
+        agentConfigService = mock(AgentConfigService.class);
         systemEnvironment = mock(SystemEnvironment.class);
         goConfigService = mock(GoConfigService.class);
 
@@ -75,7 +74,7 @@ public class AgentRegistrationControllerTest {
 
         when(systemEnvironment.getSslServerPort()).thenReturn(8443);
         pluginsZip = mock(PluginsZip.class);
-        controller = new AgentRegistrationController(agentService, goConfigService, systemEnvironment, pluginsZip);
+        controller = new AgentRegistrationController(agentService, goConfigService, systemEnvironment, pluginsZip, agentConfigService);
     }
 
     @Test
@@ -83,8 +82,12 @@ public class AgentRegistrationControllerTest {
         when(goConfigService.hasAgent("blahAgent-uuid")).thenReturn(false);
         ServerConfig serverConfig = new ServerConfig("artifacts", new SecurityConfig(), 10, 20, "1", null);
         when(goConfigService.serverConfig()).thenReturn(serverConfig);
-        controller.agentRequest("blahAgent-host", "blahAgent-uuid", "blah-location", "34567", "osx", "", "", "", "", request);
-        verify(agentService).requestRegistration(AgentRuntimeInfo.fromServer(new AgentConfig("blahAgent-uuid", "blahAgent-host", request.getRemoteAddr()), false, "blah-location", 34567L, "osx"));
+        when(agentService.agentUsername("blahAgent-uuid", request.getRemoteAddr(), "blahAgent-host")).thenReturn(new Username("some-agent-login-name"));
+
+        ModelAndView modelAndView = controller.agentRequest("blahAgent-host", "blahAgent-uuid", "blah-location", "34567", "osx", "", "", "", "", "", "", false, request);
+        assertThat(modelAndView.getView().getContentType(), is("application/json"));
+
+        verify(agentService).requestRegistration(new Username("some-agent-login-name"), AgentRuntimeInfo.fromServer(new AgentConfig("blahAgent-uuid", "blahAgent-host", request.getRemoteAddr()), false, "blah-location", 34567L, "osx", false));
     }
 
     @Test
@@ -94,10 +97,13 @@ public class AgentRegistrationControllerTest {
         ServerConfig serverConfig = new ServerConfig("artifacts", new SecurityConfig(), 10, 20, "1", "someKey");
         when(goConfigService.serverConfig()).thenReturn(serverConfig);
 
-        controller.agentRequest("host", uuid, "location", "233232", "osx", "someKey", "", "", "", request);
+        when(agentService.agentUsername(uuid, request.getRemoteAddr(), "host")).thenReturn(new Username("some-agent-login-name"));
+        when(agentConfigService.updateAgent(any(UpdateConfigCommand.class), eq(uuid), any(HttpOperationResult.class), eq(new Username("some-agent-login-name"))))
+                .thenReturn(new AgentConfig(uuid, "host", request.getRemoteAddr()));
+        controller.agentRequest("host", uuid, "location", "233232", "osx", "someKey", "", "", "", "", "", false, request);
 
-        verify(agentService).requestRegistration(AgentRuntimeInfo.fromServer(new AgentConfig(uuid, "host", request.getRemoteAddr()), false, "location", 233232L, "osx"));
-        verify(goConfigService).updateConfig(any(UpdateConfigCommand.class));
+        verify(agentService).requestRegistration(new Username("some-agent-login-name"), AgentRuntimeInfo.fromServer(new AgentConfig(uuid, "host", request.getRemoteAddr()), false, "location", 233232L, "osx", false));
+        verify(agentConfigService).updateAgent(any(UpdateConfigCommand.class), eq(uuid), any(HttpOperationResult.class), eq(new Username("some-agent-login-name")));
     }
 
     @Test
@@ -106,11 +112,15 @@ public class AgentRegistrationControllerTest {
         when(goConfigService.hasAgent(uuid)).thenReturn(false);
         ServerConfig serverConfig = new ServerConfig("artifacts", new SecurityConfig(), 10, 20, "1", "someKey");
         when(goConfigService.serverConfig()).thenReturn(serverConfig);
+        when(agentService.agentUsername(uuid, request.getRemoteAddr(), "autoregister-hostname")).thenReturn(new Username("some-agent-login-name"));
+        when(agentConfigService.updateAgent(any(UpdateConfigCommand.class), eq(uuid), any(HttpOperationResult.class), eq(new Username("some-agent-login-name"))))
+                .thenReturn(new AgentConfig(uuid, "autoregister-hostname", request.getRemoteAddr()));
 
-        controller.agentRequest("host", uuid, "location", "233232", "osx", "someKey", "", "", "autoregister-hostname", request);
+        controller.agentRequest("host", uuid, "location", "233232", "osx", "someKey", "", "", "autoregister-hostname", "", "", false, request);
 
-        verify(agentService).requestRegistration(AgentRuntimeInfo.fromServer(new AgentConfig(uuid, "autoregister-hostname", request.getRemoteAddr()), false, "location", 233232L, "osx"));
-        verify(goConfigService).updateConfig(any(UpdateConfigCommand.class));
+        verify(agentService).requestRegistration(new Username("some-agent-login-name"), AgentRuntimeInfo.fromServer(
+                new AgentConfig(uuid, "autoregister-hostname", request.getRemoteAddr()), false, "location", 233232L, "osx", false));
+        verify(agentConfigService).updateAgent(any(UpdateConfigCommand.class), eq(uuid), any(HttpOperationResult.class), eq(new Username("some-agent-login-name")));
     }
 
     @Test
@@ -120,9 +130,10 @@ public class AgentRegistrationControllerTest {
         ServerConfig serverConfig = new ServerConfig("artifacts", new SecurityConfig(), 10, 20, "1", "");
         when(goConfigService.serverConfig()).thenReturn(serverConfig);
 
-        controller.agentRequest("host", uuid, "location", "233232", "osx", "", "", "", "", request);
+        when(agentService.agentUsername(uuid, request.getRemoteAddr(), "host")).thenReturn(new Username("some-agent-login-name"));
+        controller.agentRequest("host", uuid, "location", "233232", "osx", "", "", "", "", "", "", false, request);
 
-        verify(agentService).requestRegistration(AgentRuntimeInfo.fromServer(new AgentConfig(uuid, "host", request.getRemoteAddr()), false, "location", 233232L, "osx"));
+        verify(agentService).requestRegistration(new Username("some-agent-login-name"), AgentRuntimeInfo.fromServer(new AgentConfig(uuid, "host", request.getRemoteAddr()), false, "location", 233232L, "osx", false));
         verify(goConfigService, never()).updateConfig(any(UpdateConfigCommand.class));
     }
 

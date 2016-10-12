@@ -6,9 +6,11 @@
     <%= render :partial => "shared/head" %>
 </head>
 <body id="<%= page_name %>" class="<%= page_name %>">
+<div class="page-wrap">
 <div id="body_bg">
+
     <div id="header">
-        <%= render :partial => "shared/header", :locals => {:scope => {:admin_tab_url => '/tab/admin'}} %>
+        <%= render :partial => "shared/header" %>
     </div>
 
     <div id='body_content' class="admin_body_content">
@@ -27,8 +29,11 @@
             <div class="admin_workspace has_tree_view">
                 <div class="pipeline_header">
                     <h3 class="title entity_title">
-                        <%= link_to word_breaker(@pipeline.name(),75), pipeline_edit_path(:pipeline_name => params[:pipeline_name], :current_tab => 'general') %>
+                        <%= link_to @pipeline.name(), pipeline_edit_path(:pipeline_name => params[:pipeline_name], :current_tab => 'general'), :class => 'wrapped_word' %>
                     </h3>
+                  <% if is_pipeline_config_spa_enabled? %>
+                      <%= link_to 'Quick Edit', edit_admin_pipeline_config_path(:pipeline_name => params[:pipeline_name]), :class => 'toggle-new-view' %>
+                  <% end %>
                 </div>
                 <div class="sub_tabs_container <%= params[:current_tab] -%>">
                     <%= render :partial => "admin/pipelines/pipeline_navigation", :locals=> {:scope=> {:pipeline => @pipeline}} %>
@@ -45,10 +50,12 @@
 
         <%= end_content_wrapper %>
     </div>
-    <div id='footer'>
-        <%= render :partial => "shared/footer" %>
-    </div>
+  </div>
 </div>
+  <div id='footer-new-foundation'>
+    <%= render :partial => 'navigation_elements/footer' %>
+  </div>
+
 </body>
 <script type="text/javascript">
     AjaxRefreshers.addRefresher(new AjaxRefresher("<%= pause_info_refresh_path(:pipeline_name => @pipeline.name()) -%>"), true);

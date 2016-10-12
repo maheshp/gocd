@@ -18,11 +18,10 @@ package com.thoughtworks.go.domain;
 
 import com.rits.cloning.Cloner;
 import com.thoughtworks.go.config.ArtifactPlan;
+import com.thoughtworks.go.config.ConfigSaveValidationContext;
 import com.thoughtworks.go.config.JobConfig;
-import com.thoughtworks.go.config.ValidationContext;
 import com.thoughtworks.go.util.ClassMockery;
 import com.thoughtworks.go.work.DefaultGoPublisher;
-import org.apache.commons.lang.builder.EqualsBuilder;
 import org.jmock.Expectations;
 import org.jmock.Mockery;
 import org.junit.After;
@@ -34,7 +33,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static com.thoughtworks.go.util.FileUtil.deleteFolder;
-import static org.apache.commons.lang.builder.ToStringBuilder.reflectionToString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
@@ -131,21 +129,21 @@ public class ArtifactPlanTest {
 
     @Test
     public void validate_shouldFailIfSourceIsEmpty() {
-        ArtifactPlan artifactPlan = new ArtifactPlan("", "bar");
-        artifactPlan.validate(ValidationContext.forChain(new JobConfig("jobname")));
-        assertThat(artifactPlan.errors().on(ArtifactPlan.SRC), is("Job 'jobname' has an aritfact with an empty source"));
+        ArtifactPlan artifactPlan = new ArtifactPlan(null, "bar");
+        artifactPlan.validate(ConfigSaveValidationContext.forChain(new JobConfig("jobname")));
+        assertThat(artifactPlan.errors().on(ArtifactPlan.SRC), is("Job 'jobname' has an artifact with an empty source"));
     }
 
     @Test
    public void validate_shouldFailIfDestDoesNotMatchAFilePattern() {
         ArtifactPlan artifactPlan = new ArtifactPlan("foo/bar", "..");
         artifactPlan.validate(null);
-        assertThat(artifactPlan.errors().on(ArtifactPlan.DEST), is("Invalid destination path. Destination path should match the pattern ([^. ].+[^. ])|([^. ][^. ])|([^. ])"));
+        assertThat(artifactPlan.errors().on(ArtifactPlan.DEST), is("Invalid destination path. Destination path should match the pattern (([.]\\/)?[.][^. ]+)|([^. ].+[^. ])|([^. ][^. ])|([^. ])"));
     }
 
     @Test
     public void validate_shouldNotFailWhenDestinationIsNotSet() {
-        ArtifactPlan artifactPlan = new ArtifactPlan();
+        ArtifactPlan artifactPlan = new ArtifactPlan(null, null);
         artifactPlan.setSrc("source");
         artifactPlan.validate(null);
         assertThat(artifactPlan.errors().isEmpty(), is(true));

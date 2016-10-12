@@ -1,18 +1,18 @@
-/*************************GO-LICENSE-START*********************************
- * Copyright 2014 ThoughtWorks, Inc.
+/*
+ * Copyright 2016 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *************************GO-LICENSE-END***********************************/
+ */
 
 package com.thoughtworks.go.plugin.access.notification;
 
@@ -25,8 +25,9 @@ import org.junit.Test;
 import org.mockito.Mock;
 
 import static java.util.Arrays.asList;
-import static org.mockito.Matchers.anyList;
-import static org.mockito.Matchers.anyString;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.*;
 import static org.mockito.MockitoAnnotations.initMocks;
 
@@ -51,10 +52,10 @@ public class NotificationPluginRegistrarTest {
     public void setUp() {
         initMocks(this);
 
-        when(notificationExtension.isNotificationPlugin(PLUGIN_ID_1)).thenReturn(true);
-        when(notificationExtension.isNotificationPlugin(PLUGIN_ID_2)).thenReturn(true);
-        when(notificationExtension.isNotificationPlugin(PLUGIN_ID_3)).thenReturn(true);
-        when(notificationExtension.isNotificationPlugin(PLUGIN_ID_4)).thenReturn(false);
+        when(notificationExtension.canHandlePlugin(PLUGIN_ID_1)).thenReturn(true);
+        when(notificationExtension.canHandlePlugin(PLUGIN_ID_2)).thenReturn(true);
+        when(notificationExtension.canHandlePlugin(PLUGIN_ID_3)).thenReturn(true);
+        when(notificationExtension.canHandlePlugin(PLUGIN_ID_4)).thenReturn(false);
 
         when(notificationExtension.getNotificationsOfInterestFor(PLUGIN_ID_1)).thenReturn(asList(PIPELINE_STATUS, STAGE_STATUS, JOB_STATUS));
         when(notificationExtension.getNotificationsOfInterestFor(PLUGIN_ID_2)).thenReturn(asList(PIPELINE_STATUS));
@@ -110,5 +111,23 @@ public class NotificationPluginRegistrarTest {
 
         verify(logger).warn("Plugin 'plugin-id-1' is trying to register for 'pipeline-status' which is not a valid notification type. Valid notification types are: [stage-status]");
         verify(logger).warn("Plugin 'plugin-id-1' is trying to register for 'job-status' which is not a valid notification type. Valid notification types are: [stage-status]");
+    }
+
+    @Test
+    public void shouldRegisterPluginOnPluginLoad() {
+        NotificationPluginRegistrar notificationPluginRegistrar = new NotificationPluginRegistrar(pluginManager, notificationExtension, notificationPluginRegistry);
+
+        notificationPluginRegistrar.pluginLoaded(new GoPluginDescriptor(PLUGIN_ID_1, null, null, null, null, true));
+
+        verify(notificationPluginRegistry).registerPlugin(PLUGIN_ID_1);
+    }
+
+    @Test
+    public void shouldUnregisterPluginOnPluginUnLoad() {
+        NotificationPluginRegistrar notificationPluginRegistrar = new NotificationPluginRegistrar(pluginManager, notificationExtension, notificationPluginRegistry);
+
+        notificationPluginRegistrar.pluginUnLoaded(new GoPluginDescriptor(PLUGIN_ID_1, null, null, null, null, true));
+
+        verify(notificationPluginRegistry).deregisterPlugin(PLUGIN_ID_1);
     }
 }

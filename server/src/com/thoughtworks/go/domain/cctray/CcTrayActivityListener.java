@@ -1,5 +1,5 @@
-/*************************GO-LICENSE-START*********************************
- * Copyright 2015 ThoughtWorks, Inc.
+/*
+ * Copyright 2016 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,14 +12,16 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *************************GO-LICENSE-END***********************************/
+ */
 
 package com.thoughtworks.go.domain.cctray;
 
 import com.thoughtworks.go.config.CruiseConfig;
+import com.thoughtworks.go.config.PipelineConfig;
 import com.thoughtworks.go.domain.JobInstance;
 import com.thoughtworks.go.domain.Stage;
 import com.thoughtworks.go.listener.ConfigChangedListener;
+import com.thoughtworks.go.listener.EntityConfigChangedListener;
 import com.thoughtworks.go.server.domain.JobStatusListener;
 import com.thoughtworks.go.server.domain.StageStatusListener;
 import com.thoughtworks.go.server.initializers.Initializer;
@@ -57,13 +59,28 @@ public class CcTrayActivityListener implements Initializer, JobStatusListener, S
         this.stageStatusChangeHandler = stageStatusChangeHandler;
         this.configChangeHandler = configChangeHandler;
 
-        this.queue = new LinkedBlockingQueue<Action>();
+        this.queue = new LinkedBlockingQueue<>();
     }
 
     @Override
     public void initialize() {
         goConfigService.register(this);
+        goConfigService.register(pipelineConfigChangedListener());
         startQueueProcessor();
+    }
+
+    protected EntityConfigChangedListener<PipelineConfig> pipelineConfigChangedListener() {
+        return new EntityConfigChangedListener<PipelineConfig>() {
+            @Override
+            public void onEntityConfigChange(final PipelineConfig pipelineConfig) {
+                queue.add(new Action() {
+                    @Override
+                    public void call() {
+                        configChangeHandler.call(pipelineConfig, goConfigService.findGroupNameByPipeline(pipelineConfig.name()));
+                    }
+                });
+            }
+        };
     }
 
     @Override

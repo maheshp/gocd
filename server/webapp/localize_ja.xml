@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- *************************GO-LICENSE-START******************************
- * Copyright 2014 ThoughtWorks, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *************************GO-LICENSE-END******************************* -->
+<!--
+  ~ Copyright 2016 ThoughtWorks, Inc.
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~    http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
 
 <!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
 <properties>
@@ -116,7 +116,7 @@
     <entry key="FAILED_JOBS">Failed: {0}</entry>
     <entry key="IN_PROGRESS_JOBS">In Progress: {0}</entry>
     <entry key="UNABLE_TO_RETRIEVE_FAILURE_RESULTS">Unable to retrieve failure results.</entry>
-    <entry key="URL_NOT_KNOWN">The url [ {0} ] you are trying to reach doesn''t appear to be correct.</entry>
+    <entry key="URL_NOT_KNOWN">The url you are trying to reach appears to be incorrect.</entry>
     <entry key="ELAPSED">Elapsed</entry>
     <entry key="CURRENT_FAILURES_BY_PIPELINE_HISTORY">Current Failures by Pipeline History</entry>
     <entry key="TOTAL:">Total:</entry>
@@ -148,12 +148,14 @@
     <entry key="ENVIRONMENTS">Environments</entry>
     <entry key="NO_PERMISSION_TO_ADD_ENVIRONMENT">Failed to add environment. User ''{0}'' does not have permission to add environments</entry>
     <entry key="NO_PERMISSION_TO_UPDATE_ENVIRONMENT">Failed to update environment ''{0}''. User ''{1}'' does not have permission to update environments</entry>
+    <entry key="NO_PERMISSION_TO_DELETE_ENVIRONMENT">Failed to delete environment ''{0}''. User ''{1}'' does not have permission to update environments</entry>
     <entry key="ADD_THIS_ENVIRONMENT">Add this environment</entry>
     <entry key="CANNOT_ADD_ENV_ALREADY_EXISTS">Failed to add environment. Environment ''{0}'' already exists.</entry>
     <entry key="ADD_ENVIRONMENT_SUCCESS">Added environment ''{0}''</entry>
     <entry key="UPDATE_ENVIRONMENT_SUCCESS">Updated environment ''{0}''.</entry>
     <entry key="ENV_ADD_FAILED">Failed to add environment. {0}</entry>
     <entry key="ENV_UPDATE_FAILED">Failed to update environment ''{0}''. {1}</entry>
+    <entry key="ENV_DELETE_FAILED">Failed to delete environment ''{0}''. {1}</entry>
     <entry key="NO_PIPELINES_CONFIGURED_FOR_ENVIRONMENT">There are no pipelines configured for this environment.</entry>
     <entry key="ENVIRONMENT_NAME">Environment Name:</entry>
     <entry key="ENVIRONMENT_NAME_REQUIRED">Environment name is required</entry>
@@ -237,7 +239,7 @@
     <entry key="INVALID_ADMIN_ADDRESS">Admin address is not a valid email address.</entry>
     <entry key="INVALID_EMAIL">Not a valid email address.</entry>
     <entry key="VALID_VALUE">Valid</entry>
-    <entry key="FAILED_TO_SEND_TEST_MAIL">Failed to send test mail because: {0}</entry>
+    <entry key="FAILED_TO_SEND_TEST_MAIL">Email: {0}</entry>
     <entry key="SENT_TEST_MAIL_SUCCESSFULLY">Sent test email successfully.</entry>
     <entry key="INVALID_TLS">TLS should be selected.</entry>
     <entry key="ADMIN_ADDRESS_REQUIRED">Admin email address is required.</entry>
@@ -276,6 +278,7 @@
     <entry key="ENV_NOT_FOUND">Environment named ''{0}'' not found.</entry>
     <entry key="SHOW_ENVIRONMENT_PAGE_TITLE">{0} - Environment</entry>
     <entry key="SHOW_UNAVAILABLE_PIPELINES">Unavailable pipelines (Already associated with environments)</entry>
+    <entry key="SHOW_UNAVAILABLE_REMOTE_PIPELINES">Pipelines associated with this environment in configuration repository</entry>
     <entry key="SHOW_AVAILABLE_PIPELINES">Available pipelines</entry>
     <entry key="NO_AVAILABLE_PIPELINES">There are no available pipelines.</entry>
     <entry key="INVALID_CONFIG_ON_DISK">Invalid config on disk. Displaying the last known valid config (Editing config through Go will overwrite the invalid copy. Edit it on disk to fix this problem).</entry>
@@ -376,7 +379,9 @@
     <entry key="OPTIONS">Options</entry>
     <entry key="BLACKLIST">Blacklist</entry>
     <entry key="BLACKLIST_DESCRIPTION">Enter the paths to be excluded. Separate multiple entries with a comma.</entry>
+    <entry key="INVERT_FILTER">Invert the file filter, e.g. a Blacklist becomes a Whitelist instead.</entry>
     <entry key="BRANCH">Branch</entry>
+    <entry key="SHALLOW_CLONE">Shallow clone (recommended for large repositories)</entry>
     <entry key="P4_SERVER_AND_PORT">Server and Port</entry>
     <entry key="P4_USE_TICKETS">Use tickets</entry>
     <entry key="P4_VIEW">View</entry>
@@ -505,6 +510,7 @@
     <entry key="DELETED_SUCCESSFULLY">Deleted successfully.</entry>
     <entry key="ADMINISTRATION">Administration</entry>
     <entry key="NUMBER_OF_JOBS">{0} Jobs</entry>
+    <entry key="CANNOT_DELETE_REMOTE_PIPELINE">Cannot delete pipeline ''{0}'' defined in configuration repository ''{1}''</entry>
     <entry key="CANNOT_DELETE_PIPELINE_IN_ENVIRONMENT">Cannot delete pipeline ''{0}'' as it is present in environment ''{1}''</entry>
     <entry key="CANNOT_DELETE_PIPELINE_USED_AS_MATERIALS">Cannot delete pipeline ''{0}'' as pipeline ''{1}'' depends on it</entry>
     <entry key="CAN_DELETE_PIPELINE">Delete this pipeline</entry>
@@ -521,7 +527,9 @@
     <entry key="ADD_PIPELINE_TO_GROUP">Create a new pipeline within this group</entry>
     <entry key="MORE_INFORMATION">More Information</entry>
     <entry key="NO_ENVIRONMENTS_CONFIGURED">No environments are displayed because either no environments have been set up or you are not authorized to view the pipelines within any of the environments.</entry>
-    <entry key="CANNOT_DELETE_TEMPLATE">Cannot delete this template as it is used by at least one pipeline</entry>
+    <entry key="CANNOT_DELETE_TEMPLATE">Cannot delete the template ''{0}'' as it is used by pipeline(s): ''{1}''</entry>
+    <entry key="TEMPLATE_DELETED_SUCCESSFUL">The template ''{0}'' was deleted successfully.</entry>
+    <entry key="TEMPLATE_NAME_CANNOT_BE_NULL">The template config is invalid. Template name cannot be null.</entry>
     <entry key="DELETE_TEMPLATE">Delete this template</entry>
     <entry key="UNAUTHORIZED_TO_ADMINISTER">Unauthorized to edit configuration</entry>
     <entry key="TEMPLATE_NOT_FOUND">Template ''{0}'' not found</entry>
@@ -612,6 +620,8 @@
     <entry key="DURATION_HEADER">Duration</entry>
     <entry key="DOES_NOT_APPLY">-</entry>
     <entry key="AGENT_WITH_UUID_NOT_FOUND">Agent with uuid ''{0}'' not found.</entry>
+    <entry key="AGENTS_WITH_UUIDS_NOT_FOUND">Agent(s) with uuid(s) [{0}] not found.</entry>
+    <entry key="PIPELINES_WITH_NAMES_NOT_FOUND">Pipeline(s) with name(s) [{0}] not found.</entry>
     <entry key="CLONE">Clone</entry>
     <entry key="CLONE_PIPELINE">Clone Pipeline</entry>
     <entry key="AGENT_NO_JOB_RUN_HISTORY">This agent has no completed job runs.</entry>
@@ -675,6 +685,9 @@
     <entry key="CREATE_TEMPLATE_FROM_PIPELINE_TOOL_TIP">If a pipeline is not selected, a template with a default stage and default job is created. If a pipeline is selected, the template will use the stages from the pipeline and the pipeline itself will start using this template.</entry>
     <entry key="CREATE_TEMPLATE_FROM_PIPELINE_DISABLED_TOOL_TIP">No pipelines available for extracting template. Either all pipelines use templates already or no pipelines exists.</entry>
     <entry key="CANNOT_EXTRACT_TEMPLATE">This pipeline is already using a template.</entry>
+    <entry key="CANNOT_EXTRACT_TEMPLATE_FROM_REMOTE">This pipeline is defined in configuration repository.</entry>
+    <entry key="CANNOT_EDIT_REMOTE_PIPELINE">Cannot edit pipeline defined in configuration repository.</entry>
+    <entry key="CANNOT_CLONE_REMOTE_PIPELINE">Cannot clone pipeline defined in configuration repository.</entry>
     <entry key="THIS_PIPELINE_WILL_NOW_START_USING_NEWLY_CREATED_TEMPLATE">This pipeline will now start using the newly created template.</entry>
     <entry key="STAGE_CANCELLED_SUCCESSFULLY">Stage cancelled successfully.</entry>
     <entry key="GO_TEST_CASE_MESSAGE_WITH_NEWLINE">Message with newline.
@@ -735,6 +748,8 @@
     <entry key="USER_DELETE_SUCCESSFUL">User ''{0}'' was deleted successfully.</entry>
     <entry key="USER_NOT_FOUND">User ''{0}'' not found.</entry>
     <entry key="USER_NOT_DISABLED">User ''{0}'' is not disabled.</entry>
+    <entry key="ENVIRONMENT_DELETE_SUCCESSFUL">Environment ''{0}'' was deleted successfully.</entry>
+    <entry key="RESOURCE_NOT_FOUND">{0} ''{1}'' not found.</entry>
     <entry key="VIEW">View</entry>
     <entry key="ADD_NEW_REPOSITORY">Add New Repository</entry>
     <entry key="MANDATORY_CONFIGURATION_FIELD">This field is required</entry>
@@ -778,4 +793,13 @@
     <entry key="GARAGE_MESSAGE">{0}</entry>
     <entry key="GLOBAL_SCM_WARNING">This is a global copy. All pipelines using this SCM will be affected.</entry>
     <entry key="SCM_USED_IN_PIPELINES_LINK">Show pipelines using this SCM</entry>
+    <entry key="STALE_RESOURCE_CONFIG">Someone has modified the configuration for {0} ''{1}''. Please update your copy of the config with the changes.</entry>
+    <entry key="ENTITY_CONFIG_VALIDATION_FAILED">Validations failed for {0} ''{1}''. Error(s): [{2}]. Please correct and resubmit.</entry>
+    <entry key="PIPELINE_RENAMING_NOT_ALLOWED">Renaming of pipeline is not supported by this API.</entry>
+    <entry key="CANNOT_CREATE_PIPELINE_ALREADY_EXISTS">Failed to create pipeline ''{0}'' as another pipeline by the same name already exists.</entry>
+    <entry key="PIPELINE_DELETE_SUCCESSFUL">Pipeline ''{0}'' was deleted successfully.</entry>
+    <entry key="UNAUTHORIZED_TO_DELETE_PIPELINE">Unauthorized to delete pipeline.</entry>
+    <entry key="PIPELINE_GROUP_MANDATORY_FOR_PIPELINE_CREATE">Pipeline group must be specified for creating a pipeline.</entry>
+    <entry key="UNAUTHORIZED_TO_OPERATE">You are not authorized to perform this operation.</entry>
+    <entry key="BULK_AGENT_UPDATE_SUCESSFUL">Updated agent(s) with uuid(s): [{0}].</entry>
 </properties>

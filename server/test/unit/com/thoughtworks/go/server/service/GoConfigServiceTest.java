@@ -1,18 +1,18 @@
-/*************************GO-LICENSE-START*********************************
- * Copyright 2014 ThoughtWorks, Inc.
+/*
+ * Copyright 2016 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *************************GO-LICENSE-END***********************************/
+ */
 
 package com.thoughtworks.go.server.service;
 
@@ -24,6 +24,7 @@ import com.thoughtworks.go.config.materials.MaterialConfigs;
 import com.thoughtworks.go.config.materials.dependency.DependencyMaterialConfig;
 import com.thoughtworks.go.config.materials.svn.SvnMaterialConfig;
 import com.thoughtworks.go.config.registry.ConfigElementImplementationRegistry;
+import com.thoughtworks.go.config.remote.RepoConfigOrigin;
 import com.thoughtworks.go.config.server.security.ldap.BaseConfig;
 import com.thoughtworks.go.config.server.security.ldap.BasesConfig;
 import com.thoughtworks.go.config.update.ConfigUpdateResponse;
@@ -39,11 +40,8 @@ import com.thoughtworks.go.helper.StageConfigMother;
 import com.thoughtworks.go.i18n.Localizer;
 import com.thoughtworks.go.listener.BaseUrlChangeListener;
 import com.thoughtworks.go.listener.ConfigChangedListener;
-import com.thoughtworks.go.metrics.service.MetricsProbeService;
-import com.thoughtworks.go.remote.AgentIdentifier;
 import com.thoughtworks.go.security.GoCipher;
 import com.thoughtworks.go.server.cache.GoCache;
-import com.thoughtworks.go.server.dao.DatabaseAccessHelper;
 import com.thoughtworks.go.server.dao.UserDao;
 import com.thoughtworks.go.server.domain.PipelineConfigDependencyGraph;
 import com.thoughtworks.go.server.domain.Username;
@@ -61,14 +59,11 @@ import org.jdom.input.JDOMParseException;
 import org.joda.time.DateTime;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.File;
 import java.util.*;
 
-import static com.thoughtworks.go.config.PipelineConfigs.DEFAULT_GROUP;
-import static com.thoughtworks.go.helper.AgentMother.*;
 import static com.thoughtworks.go.helper.ConfigFileFixture.configWith;
 import static com.thoughtworks.go.helper.PipelineConfigMother.createGroup;
 import static com.thoughtworks.go.helper.PipelineConfigMother.pipelineConfig;
@@ -76,13 +71,14 @@ import static com.thoughtworks.go.helper.PipelineTemplateConfigMother.createTemp
 import static java.lang.String.format;
 import static org.apache.commons.httpclient.HttpStatus.SC_BAD_REQUEST;
 import static org.apache.commons.httpclient.HttpStatus.SC_INTERNAL_SERVER_ERROR;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.nullValue;
 import static org.hamcrest.core.StringContains.containsString;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.argThat;
 import static org.mockito.Mockito.*;
 
 public class GoConfigServiceTest {
@@ -99,7 +95,6 @@ public class GoConfigServiceTest {
     private ConfigRepository configRepo;
     private UserDao userDao;
     public PipelinePauseService pipelinePauseService;
-    private MetricsProbeService metricsProbeService;
     private InstanceFactory instanceFactory;
 
     @Before
@@ -110,7 +105,7 @@ public class GoConfigServiceTest {
         goConfigDao = mock(GoConfigDao.class);
         pipelineRepository = mock(PipelineRepository.class);
         pipelinePauseService = mock(PipelinePauseService.class);
-        metricsProbeService = mock(MetricsProbeService.class);
+
         cruiseConfig = unchangedConfig();
         expectLoad(cruiseConfig);
         this.clock = mock(Clock.class);
@@ -120,8 +115,8 @@ public class GoConfigServiceTest {
 
         ConfigElementImplementationRegistry registry = ConfigElementImplementationRegistryMother.withNoPlugins();
         goConfigService = new GoConfigService(goConfigDao, pipelineRepository, this.clock, new GoConfigMigration(configRepo, new TimeProvider(), new ConfigCache(),
-                registry, metricsProbeService), goCache, configRepo, userDao, registry, metricsProbeService,
-                instanceFactory);
+                registry), goCache, configRepo, registry,
+                instanceFactory, mock(CachedGoPartials.class));
     }
 
     @Test
@@ -314,158 +309,12 @@ public class GoConfigServiceTest {
         assertThat(configValidity.errorMessage(), is(""));
     }
 
-    @Test
-    public void shouldThrowExceptionWhenBuildFileIsInvalid() throws Exception {
-        goConfigDao = mock(GoConfigDao.class, "badCruiseConfigManager");
-        when(goConfigDao.loadForEditing()).thenThrow(new RuntimeException("Invalid config file", new JDOMParseException("JDom exception", new RuntimeException())));
-
-        GoConfigService service = new GoConfigService(goConfigDao, pipelineRepository, new SystemTimeClock(), mock(GoConfigMigration.class), goCache, null, userDao,
-                ConfigElementImplementationRegistryMother.withNoPlugins(), metricsProbeService, instanceFactory);
-
-        try {
-            service.buildSaver("pipeline", "stage", 1).asXml();
-            fail("Invalid config file.");
-        } catch (Exception e) {
-            assertThat(e.getMessage(), is("Invalid config file"));
-        }
-    }
-
-    @Test
-    public void shouldReturnInvalidWhenTemplatesPartialIsInvalid() throws Exception {
-        CruiseConfig config = new BasicCruiseConfig();
-        config.server().setArtifactsDir("/var/logs");
-        config.addTemplate(new PipelineTemplateConfig(new CaseInsensitiveString("templateName"), StageConfigMother.custom("stage", "job")));
-
-        when(goConfigDao.loadForEditing()).thenReturn(config);
-        String templateContent = "<templates>"
-                + "  <unknown/>"
-                + "<pipeline name='pipeline'>\n"
-                + "  <stage name='firstStage'>"
-                + "     <jobs>"
-                + "         <job name='jobName'/>"
-                + "      </jobs>"
-                + "  </stage>"
-                + "</pipeline>"
-                + "</templates>";
-        GoConfigValidity validity = goConfigService.templatesSaver().saveXml(templateContent, "md5");
-        assertThat(validity.errorMessage(), containsString("Invalid content was found starting with element 'unknown'"));
-    }
-
-    @Test
-    public void shouldClearExistingTemplateDefinitionWhenAnEmptyStringIsPosted() throws Exception {
-        CruiseConfig config = new BasicCruiseConfig();
-        config.server().setArtifactsDir("/var/logs");
-        config.addTemplate(new PipelineTemplateConfig(new CaseInsensitiveString("templateName"), StageConfigMother.custom("stage", "job")));
-        when(goConfigDao.loadForEditing()).thenReturn(config);
-        String templateContent = "";
-        GoConfigValidity validity = goConfigService.templatesSaver().saveXml(templateContent, "md5");
-        assertThat(validity.errorMessage(), is(""));
-    }
-
-    @Test
-    public void shouldBombWithErrorMessageWhenNoPipelinesExistAndATemplateIsConfigured() throws Exception {
-        CruiseConfig config = new BasicCruiseConfig();
-        config.server().setArtifactsDir("/var/logs");
-        when(goConfigDao.loadForEditing()).thenReturn(config);
-        String templateContent = "<templates>"
-                + "<pipeline name='pipeline'>\n"
-                + "  <stage name='firstStage'>"
-                + "     <jobs>"
-                + "         <job name='jobName'/>"
-                + "      </jobs>"
-                + "  </stage>"
-                + "</pipeline>"
-                + "</templates>";
-        GoConfigValidity validity = goConfigService.templatesSaver().saveXml(templateContent, "md5");
-        assertThat(validity.errorMessage(), is("There are no pipelines configured. Please add at least one pipeline in order to use templates."));
-    }
-
-    @Test
-    public void shouldPersistTheNewAndValidTemplateDefinition() throws Exception {
-        CruiseConfig config = new BasicCruiseConfig();
-        config.server().setArtifactsDir("/var/logs");
-        config.addTemplate(new PipelineTemplateConfig(new CaseInsensitiveString("templateName"), StageConfigMother.custom("stage", "job")));
-
-        when(goConfigDao.loadForEditing()).thenReturn(config);
-        String templateContent = "<templates>"
-                + "<pipeline name='pipeline'>\n"
-                + "  <stage name='firstStage'>"
-                + "     <jobs>"
-                + "         <job name='jobName'/>"
-                + "      </jobs>"
-                + "  </stage>"
-                + "</pipeline>"
-                + "</templates>";
-        GoConfigValidity validity = goConfigService.templatesSaver().saveXml(templateContent, "md5");
-        assertThat(validity.errorMessage(), is(""));
-    }
-
-    @Test
-    public void shouldReturnInvalidWhenIndividualTemplatePartialIsInvalid() throws Exception {
-        CruiseConfig config = new BasicCruiseConfig();
-        config.server().setArtifactsDir("/var/logs");
-        config.addTemplate(new PipelineTemplateConfig(new CaseInsensitiveString("templateName"), StageConfigMother.custom("stage", "job")));
-
-        when(goConfigDao.loadForEditing()).thenReturn(config);
-        String templateContent = "<pipeline name='pipeline'>\n"
-                + "  <unknown/>"
-                + "  <stage name='firstStage'>"
-                + "     <jobs>"
-                + "         <job name='jobName'/>"
-                + "      </jobs>"
-                + "  </stage>"
-                + "</pipeline>";
-        GoConfigValidity validity = goConfigService.templateSaver(0).saveXml(templateContent, "md5");
-        assertThat(validity.errorMessage(), containsString("Invalid content was found starting with element 'unknown'"));
-    }
-
     private CruiseConfig configWithPipeline() {
         PipelineConfig pipelineConfig = createPipelineConfig("pipeline", "stage", "first");
         pipelineConfig.addMaterialConfig(MaterialConfigsMother.hgMaterialConfig());
         CruiseConfig config = configWith(pipelineConfig);
         config.server().setArtifactsDir("/var/logs");
         return config;
-    }
-
-    @Test
-    public void shouldReturnInvalidWhenJobPartialIsInvalid() throws Exception {
-        CruiseConfig config = configWithPipeline();
-        when(goConfigDao.loadForEditing()).thenReturn(config);
-        GoConfigValidity validity = goConfigService.buildSaver("pipeline", "stage", 0).saveXml("<job name='first'><unknown></unknown></job>", "md5");
-        assertThat(validity.errorMessage(), containsString("Invalid content was found starting with element 'unknown'"));
-    }
-
-    @Test
-    public void shouldReturnInvalidWhenPipelinePartialIsInvalid() throws Exception {
-        CruiseConfig config = configWithPipeline();
-        when(goConfigDao.loadForEditing()).thenReturn(config);
-        String pipelineContent = "<pipeline name='pipeline'>\n"
-                + "    <materials>\n"
-                + "         <svn url ='svnurl' dest='a'/>\n"
-                + "    </materials>\n"
-                + "  <stage name='firstStage'>"
-                + "     <jobs>"
-                + "         <job name='jobName'/>"
-                + "      </jobs>"
-                + "  </stage>"
-                + "  <unknown/>"
-                + "</pipeline>";
-        GoConfigValidity validity = goConfigService.pipelineSaver("defaultGroup", 0).saveXml(pipelineContent, "md5");
-        assertThat(validity.errorMessage(), containsString("Invalid content was found starting with element 'unknown'"));
-    }
-
-    @Test
-    public void shouldReturnInvalidWhenStagePartialIsInvalid() throws Exception {
-        CruiseConfig config = configWithPipeline();
-        when(goConfigDao.loadForEditing()).thenReturn(config);
-        String stageContent = "<stage name='firstStage'>"
-                + "  <unknown/>"
-                + "     <jobs>"
-                + "         <job name='jobName'/>"
-                + "      </jobs>"
-                + "  </stage>";
-        GoConfigValidity validity = goConfigService.stageSaver("pipeline", 0).saveXml(stageContent, "md5");
-        assertThat(validity.errorMessage(), containsString("Invalid content was found starting with element 'unknown'"));
     }
 
     @Test
@@ -488,28 +337,6 @@ public class GoConfigServiceTest {
                 + "<server artifactsdir='artifactsDir'/><unknown/></cruise>";
         GoConfigValidity validity = goConfigService.fileSaver(false).saveXml(configContent, "md5");
         assertThat(validity.errorMessage(), containsString("Invalid content was found starting with element 'unknown'"));
-    }
-
-    @Test
-    @Ignore("Deprecated usage. Will be removed soon")
-    public void shouldReturnValidWhenJobPartialIsValid() throws Exception {
-        CruiseConfig config = configWithPipeline();
-        when(goConfigDao.loadForEditing()).thenReturn(config);
-        GoConfigValidity validity = goConfigService.buildSaver("pipeline", "stage", 0).saveXml("<job name='first'></job>", "md5");
-        assertThat(validity.isValid(), is(true));
-    }
-
-    @Test
-    public void shouldThrowExceptionWhenSavingJobToPipelineWithTemplate() throws Exception {
-        PipelineConfig pipeline = pipelineWithTemplate();
-        when(goConfigDao.loadForEditing()).thenReturn(configWith(pipeline));
-
-        try {
-            goConfigService.buildSaver("pipeline", "stage", 0).asXml();
-            fail("shouldThrowExceptionWhenSavingJobToPipelineWithTemplate");
-        } catch (Exception e) {
-            assertThat(e.getMessage(), is("Pipeline 'pipeline' references template 'foo'. Cannot edit job."));
-        }
     }
 
     @Test
@@ -542,21 +369,6 @@ public class GoConfigServiceTest {
                 new EnvironmentVariableConfig("blah", "pipeline-blahValue")));
     }
 
-
-    @Test
-    public void shouldThrowExceptionWhenSavingStageToPipelineWithTemplate() throws Exception {
-        PipelineConfig pipeline = pipelineWithTemplate();
-        expectLoadForEditing(configWith(pipeline));
-
-        try {
-            goConfigService.stageSaver("pipeline", 0).asXml();
-            fail("shouldThrowExceptionWhenSavingStageToPipelineWithTemplate");
-        } catch (Exception e) {
-            assertThat(e.getMessage(), is("Pipeline 'pipeline' references template 'foo'. Cannot edit stage."));
-        }
-    }
-
-
     private PipelineConfig pipelineWithTemplate() {
         PipelineConfig pipeline = PipelineConfigMother.pipelineConfig("pipeline");
         pipeline.clear();
@@ -564,40 +376,6 @@ public class GoConfigServiceTest {
         PipelineTemplateConfig template = new PipelineTemplateConfig(new CaseInsensitiveString("foo"), StageConfigMother.custom("stage", "job"));
         pipeline.usingTemplate(template);
         return pipeline;
-    }
-
-    @Test
-    public void shouldThrowExceptionWhenUnknownStage() throws Exception {
-        expectLoadForEditing(configWith(createPipelineConfig("pipeline", "stage", "build")));
-        try {
-            goConfigService.buildSaver("pipeline", "unknown", 1).asXml();
-            fail("Unknown stage");
-        } catch (Exception e) {
-            assertThat(e.getMessage(), is("Stage 'unknown' not found in pipeline 'pipeline'"));
-        }
-    }
-
-    @Test
-    public void shouldThrowExceptionIfUnknownPipeline() throws Exception {
-        expectLoadForEditing(configWith(createPipelineConfig("pipeline", "stage", "build")));
-        try {
-            goConfigService.stageSaver("unknown", 0).asXml();
-            fail("Unknown pipeline");
-        } catch (Exception e) {
-            assertThat(e.getMessage(), is("Pipeline 'unknown' not found."));
-        }
-    }
-
-
-    @Test
-    public void shouldThrowExceptionIfPipelineDoesNotExist() throws Exception {
-        expectLoadForEditing(configWith(createPipelineConfig("pipeline", "stage", "build")));
-        try {
-            goConfigService.pipelineSaver(DEFAULT_GROUP, 2).asXml();
-            fail("Unknown pipeline");
-        } catch (Exception e) {
-            assertThat(e.getMessage(), is("Pipeline does not exist."));
-        }
     }
 
     @Test
@@ -636,12 +414,6 @@ public class GoConfigServiceTest {
         final ConfigChangedListener listener = mock(ConfigChangedListener.class);
         goConfigService.register(listener);
         verify(goConfigDao).registerListener(listener);
-    }
-
-    @Test
-    public void shouldReturnApprovedAgentsNumber() throws Exception {
-        expectLoad(configWithAgents(approvedLocalAgent(), approvedAgent(), deniedAgent()));
-        assertThat(goConfigService.getNumberOfApprovedRemoteAgents(), is(1));
     }
 
     private CruiseConfig configWithAgents(AgentConfig... agentConfigs) {
@@ -782,49 +554,6 @@ public class GoConfigServiceTest {
         when(goConfigDao.load()).thenReturn(cruiseConfig);
 
         assertThat(goConfigService.findMaterial(new CaseInsensitiveString("pipeline"), "missing"), is(nullValue()));
-    }
-
-    @Test
-    public void shouldEnableAgentWhenPending() {
-        String agentId = DatabaseAccessHelper.AGENT_UUID;
-        AgentConfig agentConfig = new AgentConfig(agentId, "remote-host", "50.40.30.20");
-        AgentRuntimeInfo agentRuntimeInfo = AgentRuntimeInfo.fromAgent(new AgentIdentifier("remote-host", "50.40.30.20", agentId), "cookie", null);
-        AgentInstance instance = AgentInstance.createFromLiveAgent(agentRuntimeInfo, new SystemEnvironment());
-        goConfigService.disableAgents(false, instance);
-        shouldPerformCommand(new GoConfigDao.CompositeConfigCommand(GoConfigDao.createAddAgentCommand(agentConfig)));
-    }
-
-    private void shouldPerformCommand(UpdateConfigCommand command) {
-        verify(goConfigDao).updateConfig(command);
-    }
-
-    @Test
-    public void shouldEnableMultipleAgents() {
-        AgentRuntimeInfo agentRuntimeInfo = AgentRuntimeInfo.fromAgent(new AgentIdentifier("remote-host", "50.40.30.20", "abc"), "cookie", null);
-        AgentInstance pending = AgentInstance.createFromLiveAgent(agentRuntimeInfo, new SystemEnvironment());
-
-        AgentConfig agentConfig = new AgentConfig("UUID2", "remote-host", "50.40.30.20");
-        agentConfig.disable();
-        AgentInstance fromConfigFile = AgentInstance.createFromConfig(agentConfig, new SystemEnvironment());
-        goConfigService.currentCruiseConfig().agents().add(agentConfig);
-
-        goConfigService.disableAgents(false, pending, fromConfigFile);
-
-        GoConfigDao.CompositeConfigCommand command = new GoConfigDao.CompositeConfigCommand(
-                GoConfigDao.createAddAgentCommand(pending.agentConfig()),
-                GoConfigDao.updateApprovalStatus("UUID2", false));
-        verify(goConfigDao).updateConfig(command);
-    }
-
-    @Test
-    public void shouldEnableAgentWhenAlreadyInTheConfig() {
-        String agentId = DatabaseAccessHelper.AGENT_UUID;
-        AgentConfig agentConfig = new AgentConfig(agentId, "remote-host", "50.40.30.20");
-        agentConfig.disable();
-        AgentInstance instance = AgentInstance.createFromConfig(agentConfig, new SystemEnvironment());
-        goConfigService.currentCruiseConfig().agents().add(agentConfig);
-        goConfigService.disableAgents(false, instance);
-        shouldPerformCommand(new GoConfigDao.CompositeConfigCommand(GoConfigDao.updateApprovalStatus(agentId, false)));
     }
 
     @Test
@@ -1100,7 +829,7 @@ public class GoConfigServiceTest {
 
     @Test
     public void uiBasedUpdateCommandShouldReturnTheConfigPassedByUpdateOperation() {
-        UiBasedConfigUpdateCommand command = new UiBasedConfigUpdateCommand("md5", null, null) {
+        UiBasedConfigUpdateCommand command = new UiBasedConfigUpdateCommand("md5", null, null, null) {
             public boolean canContinue(CruiseConfig cruiseConfig) {
                 return true;
             }
@@ -1324,38 +1053,6 @@ public class GoConfigServiceTest {
         assertThat(configUpdateResponse.getCruiseConfig().getMd5(), is("old-md5"));
     }
 
-    @Test
-    @Ignore("Deprecated usage. Will be removed soon")
-    public void shouldReturnConfigValidityWithMergedStateWhenConfigIsMerged() throws Exception {
-        CruiseConfig config = configWithPipeline();
-        when(goConfigDao.loadForEditing()).thenReturn(config);
-        when(goConfigDao.updateConfig(org.mockito.Matchers.<UpdateConfigCommand>any())).thenReturn(ConfigSaveState.MERGED);
-
-        GoConfigValidity goConfigValidity = goConfigService.buildSaver("pipeline", "stage", 0).saveXml("<job name='first'></job>", "md5");
-
-        assertThat(goConfigValidity.isValid(), is(true));
-        assertThat(goConfigValidity.wasMerged(), is(true));
-    }
-
-    @Test
-    public void shouldReturnConfigValidityWithUpdatedStateWhenConfigIsUpdated() throws Exception {
-        CruiseConfig config = configWithPipeline();
-        when(goConfigDao.loadForEditing()).thenReturn(config);
-        when(goConfigDao.updateConfig(org.mockito.Matchers.<UpdateConfigCommand>any())).thenReturn(ConfigSaveState.UPDATED);
-
-        GoConfigValidity goConfigValidity = goConfigService.buildSaver("pipeline", "stage", 0).saveXml("<job name='first'></job>", "md5");
-
-        assertThat(goConfigValidity.isValid(), is(true));
-        assertThat(goConfigValidity.wasMerged(), is(false));
-    }
-
-    @Test
-    public void shouldReturnConfigStateFromDaoLayer_WhenUpdatingEnvironment() {
-        ConfigSaveState expectedSaveState = ConfigSaveState.MERGED;
-        when(goConfigDao.updateConfig(org.mockito.Matchers.<UpdateConfigCommand>any())).thenReturn(expectedSaveState);
-        ConfigSaveState configSaveState = goConfigService.updateEnvironment("env", new BasicEnvironmentConfig(), "md5");
-        assertThat(configSaveState, is(expectedSaveState));
-    }
 
     @Test
     public void shouldReturnConfigStateFromDaoLayer_WhenUpdatingServerConfig() {
@@ -1476,6 +1173,35 @@ public class GoConfigServiceTest {
         verify(pipelineRepository, times(1)).saveSelectedPipelines(argThat(isAPipelineSelectionsInstanceWith(false, "pipeline1", "pipeline2", "pipelineNew")));
     }
 
+
+    @Test
+    public void pipelineEditableViaUI_shouldReturnFalseWhenPipelineIsRemote() throws Exception
+    {
+        PipelineConfigs group = new BasicPipelineConfigs();
+        PipelineConfig pipelineConfig = createPipelineConfig("pipeline", "name", "plan");
+        pipelineConfig.setOrigin(new RepoConfigOrigin());
+        group.add(pipelineConfig);
+        expectLoad(new BasicCruiseConfig(group));
+        assertThat(goConfigService.isPipelineEditableViaUI("pipeline"), is(false));
+    }
+    @Test
+    public void pipelineEditableViaUI_shouldReturnTrueWhenPipelineIsLocal() throws Exception
+    {
+        PipelineConfigs group = new BasicPipelineConfigs();
+        PipelineConfig pipelineConfig = createPipelineConfig("pipeline", "name", "plan");
+        group.add(pipelineConfig);
+        expectLoad(new BasicCruiseConfig(group));
+        assertThat(goConfigService.isPipelineEditableViaUI("pipeline"), is(true));
+    }
+
+    @Test
+    public void shouldTellIfAnUserIsAdministrator() throws Exception {
+        final Username user = new Username(new CaseInsensitiveString("user"));
+        expectLoad(mock(BasicCruiseConfig.class));
+        goConfigService.isAdministrator(user.getUsername());
+        verify(goConfigDao.load()).isAdministrator(user.getUsername().toString());
+    }
+
     private PipelineConfig createPipelineConfig(String pipelineName, String stageName, String... buildNames) {
         PipelineConfig pipeline = new PipelineConfig(new CaseInsensitiveString(pipelineName), new MaterialConfigs());
         pipeline.add(new StageConfig(new CaseInsensitiveString(stageName), jobConfigs(buildNames)));
@@ -1493,8 +1219,8 @@ public class GoConfigServiceTest {
     private GoConfigService goConfigServiceWithInvalidStatus() throws Exception {
         goConfigDao = mock(GoConfigDao.class, "badCruiseConfigManager");
         when(goConfigDao.checkConfigFileValid()).thenReturn(GoConfigValidity.invalid(new JDOMParseException("JDom exception", new RuntimeException())));
-        return new GoConfigService(goConfigDao, pipelineRepository, new SystemTimeClock(), mock(GoConfigMigration.class), goCache, null, userDao,
-                ConfigElementImplementationRegistryMother.withNoPlugins(), metricsProbeService, instanceFactory);
+        return new GoConfigService(goConfigDao, pipelineRepository, new SystemTimeClock(), mock(GoConfigMigration.class), goCache, null,
+                ConfigElementImplementationRegistryMother.withNoPlugins(), instanceFactory, null);
     }
 
     private CruiseConfig mockConfig() {
@@ -1515,9 +1241,9 @@ public class GoConfigServiceTest {
     private GoConfigInvalidException getGoConfigInvalidException() {
         ConfigErrors configErrors = new ConfigErrors();
         configErrors.add("command", "command cannot be empty");
-        ArrayList<ConfigErrors> list = new ArrayList<ConfigErrors>();
+        AllConfigErrors list = new AllConfigErrors();
         list.add(configErrors);
-        return new GoConfigInvalidException(new BasicCruiseConfig(), list);
+        return new GoConfigInvalidException(new BasicCruiseConfig(), list.asString());
     }
 
     private Matcher<UpdateConfigCommand> cruiseConfigIsUpdatedWith(final String groupName, final String newPipelineName, final String labelTemplate) {
@@ -1527,7 +1253,7 @@ public class GoConfigServiceTest {
                 UpdateConfigCommand configCommand = (UpdateConfigCommand) item;
                 CruiseConfig updatedConfig = null;
                 try {
-                    updatedConfig = configCommand.update(null);
+                    updatedConfig = configCommand.update(new BasicCruiseConfig());
                 } catch (Exception e) {
                     Assert.fail(String.format("Updating config through exception : %s", e));
                 }

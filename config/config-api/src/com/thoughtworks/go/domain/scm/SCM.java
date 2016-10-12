@@ -1,5 +1,5 @@
-/*************************GO-LICENSE-START*********************************
- * Copyright 2014 ThoughtWorks, Inc.
+/*
+ * Copyright 2016 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,13 +12,15 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *************************GO-LICENSE-END***********************************/
+ *
+ */
 
 package com.thoughtworks.go.domain.scm;
 
 import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
 import com.thoughtworks.go.config.*;
+import com.thoughtworks.go.config.builder.ConfigurationPropertyBuilder;
 import com.thoughtworks.go.config.materials.AbstractMaterialConfig;
 import com.thoughtworks.go.config.validation.NameTypeValidator;
 import com.thoughtworks.go.domain.ConfigErrors;
@@ -26,6 +28,7 @@ import com.thoughtworks.go.domain.config.Configuration;
 import com.thoughtworks.go.domain.config.ConfigurationProperty;
 import com.thoughtworks.go.domain.config.ConfigurationValue;
 import com.thoughtworks.go.domain.config.PluginConfiguration;
+import com.thoughtworks.go.domain.ConfigurationDisplayUtil;
 import com.thoughtworks.go.plugin.access.scm.SCMConfiguration;
 import com.thoughtworks.go.plugin.access.scm.SCMConfigurations;
 import com.thoughtworks.go.plugin.access.scm.SCMMetadataStore;
@@ -83,6 +86,7 @@ public class SCM implements Serializable, Validatable {
         this.configuration = configuration;
     }
 
+
     public String getId() {
         return id;
     }
@@ -128,6 +132,28 @@ public class SCM implements Serializable, Validatable {
         this.configuration = configuration;
     }
 
+    public void addConfigurations(List<ConfigurationProperty> configurations) {
+        ConfigurationPropertyBuilder builder = new ConfigurationPropertyBuilder();
+        for (ConfigurationProperty property : configurations) {
+            SCMConfigurations scmConfigurations = SCMMetadataStore.getInstance().getConfigurationMetadata(getPluginId());
+            if (isValidPluginConfiguration(property.getConfigKeyName(), scmConfigurations)) {
+                configuration.add(builder.create(property.getConfigKeyName(), property.getConfigValue(), property.getEncryptedValue(),
+                                                 scmConfigurationFor(property.getConfigKeyName(), scmConfigurations).getOption(SCMConfiguration.SECURE)));
+            }
+            else {
+                configuration.add(property);
+            }
+        }
+    }
+
+    private boolean isValidPluginConfiguration(String configKey, SCMConfigurations scmConfigurations) {
+        return doesPluginExist() && scmConfigurationFor(configKey, scmConfigurations) != null;
+    }
+
+    private SCMConfiguration scmConfigurationFor(String configKey, SCMConfigurations scmConfigurations) {
+        return scmConfigurations.get(configKey);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -168,9 +194,10 @@ public class SCM implements Serializable, Validatable {
     public void validate(ValidationContext validationContext) {
         if (isBlank(name)) {
             errors().add(NAME, "Please provide name");
-        } else if (!new NameTypeValidator().isNameValid(name)) {
+        } else if (new NameTypeValidator().isNameInvalid(name)) {
             errors().add(NAME, NameTypeValidator.errorMessage("SCM", name));
         }
+        configuration.validateTree();
         configuration.validateUniqueness(String.format("SCM '%s'", name));
     }
 
@@ -185,9 +212,9 @@ public class SCM implements Serializable, Validatable {
     }
 
     public Map<String, Map<String, String>> getConfigAsMap() {
-        Map<String, Map<String, String>> configMap = new HashMap<String, Map<String, String>>();
+        Map<String, Map<String, String>> configMap = new HashMap<>();
         for (ConfigurationProperty property : configuration) {
-            Map<String, String> mapValue = new HashMap<String, String>();
+            Map<String, String> mapValue = new HashMap<>();
             mapValue.put(VALUE_KEY, property.getValue());
             if (!property.errors().isEmpty()) {
                 mapValue.put(ERRORS_KEY, ListUtil.join(property.errors().getAll()));
@@ -208,6 +235,10 @@ public class SCM implements Serializable, Validatable {
 
     private String getPluginId() {
         return pluginConfiguration.getId();
+    }
+
+    public Boolean doesPluginExist(){
+        return SCMMetadataStore.getInstance().hasPlugin(getPluginId());
     }
 
     @PostConstruct
@@ -255,7 +286,7 @@ public class SCM implements Serializable, Validatable {
     }
 
     public String getFingerprint() {
-        List<String> list = new ArrayList<String>();
+        List<String> list = new ArrayList<>();
         list.add(format("%s=%s", "plugin-id", getPluginId()));
         handleSCMProperties(list);
         String fingerprint = join(list, AbstractMaterialConfig.FINGERPRINT_DELIMITER);
@@ -288,6 +319,10 @@ public class SCM implements Serializable, Validatable {
 
     public void clearEmptyConfigurations() {
         configuration.clearEmptyConfigurations();
+    }
+
+    public List<ConfigErrors> getAllErrors() {
+        return ErrorCollector.getAllErrors(this);
     }
 
     @PostConstruct

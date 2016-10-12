@@ -1,4 +1,4 @@
-/*************************GO-LICENSE-START*********************************
+/*
  * Copyright 2015 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,11 +12,12 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *************************GO-LICENSE-END***********************************/
+ */
 
 package com.thoughtworks.go.server.initializers;
 
-import com.thoughtworks.go.config.MergedGoConfig;
+import com.thoughtworks.go.config.ConfigCipherUpdater;
+import com.thoughtworks.go.config.CachedGoConfig;
 import com.thoughtworks.go.config.GoFileConfigDataSource;
 import com.thoughtworks.go.config.InvalidConfigMessageRemover;
 import com.thoughtworks.go.config.registry.ConfigElementImplementationRegistrar;
@@ -84,7 +85,7 @@ public class ApplicationInitializerTest {
     @Mock
     private DefaultPluginJarLocationMonitor defaultPluginJarLocationMonitor;
     @Mock
-    private MergedGoConfig mergedGoConfig;
+    private CachedGoConfig cachedGoConfig;
     @Mock
     private ConsoleActivityMonitor consoleActivityMonitor;
     @Mock
@@ -121,6 +122,14 @@ public class ApplicationInitializerTest {
     private ConsoleService consoleService;
     @Mock
     private ContextRefreshedEvent contextRefreshedEvent;
+    @Mock
+    private PipelineConfigService pipelineConfigService;
+    @Mock
+    private ServerVersionInfoManager serverVersionInfoManager;
+    @Mock
+    private ConfigCipherUpdater configCipherUpdater;
+    @Mock
+    private EntityHashingService entityHashingService;
 
     @InjectMocks
     ApplicationInitializer initializer = new ApplicationInitializer();
@@ -142,6 +151,17 @@ public class ApplicationInitializerTest {
     @Test
     public void shouldInitializeCcTrayActivityListenerAfterGoConfigServiceAndPipelineSqlMapDaoAreInitialized() throws Exception {
         verifyOrder(goConfigService, pipelineSqlMapDao, ccTrayActivityListener);
+    }
+
+    @Test
+    public void shouldRunConfigCipherUpdaterBeforeInitializationOfOtherConfigRelatedServicesAndDatastores() throws Exception {
+        InOrder inOrder = inOrder(configCipherUpdater, configElementImplementationRegistrar, configRepository, goFileConfigDataSource, cachedGoConfig, goConfigService);
+        inOrder.verify(configCipherUpdater).migrate();
+        inOrder.verify(configElementImplementationRegistrar).initialize();
+        inOrder.verify(configRepository).initialize();
+        inOrder.verify(goFileConfigDataSource).upgradeIfNecessary();
+        inOrder.verify(cachedGoConfig).loadConfigIfNull();
+        inOrder.verify(goConfigService).initialize();
     }
 
     private void verifyOrder(Initializer... initializers) {

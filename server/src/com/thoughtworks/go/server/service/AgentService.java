@@ -1,11 +1,11 @@
 /*
- * Copyright 2015 ThoughtWorks, Inc.
+ * Copyright 2016 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,8 +18,6 @@ package com.thoughtworks.go.server.service;
 
 import com.thoughtworks.go.config.AgentConfig;
 import com.thoughtworks.go.config.Agents;
-import com.thoughtworks.go.config.exceptions.GoConfigInvalidException;
-import com.thoughtworks.go.config.exceptions.NoSuchEnvironmentException;
 import com.thoughtworks.go.domain.AgentInstance;
 import com.thoughtworks.go.domain.AgentRuntimeStatus;
 import com.thoughtworks.go.listener.AgentChangeListener;
@@ -27,9 +25,11 @@ import com.thoughtworks.go.presentation.TriStateSelection;
 import com.thoughtworks.go.remote.AgentIdentifier;
 import com.thoughtworks.go.security.Registration;
 import com.thoughtworks.go.server.domain.AgentInstances;
+import com.thoughtworks.go.server.domain.ElasticAgentMetadata;
 import com.thoughtworks.go.server.domain.Username;
 import com.thoughtworks.go.server.persistence.AgentDao;
 import com.thoughtworks.go.server.service.result.HttpOperationResult;
+import com.thoughtworks.go.server.service.result.LocalizedOperationResult;
 import com.thoughtworks.go.server.service.result.OperationResult;
 import com.thoughtworks.go.server.ui.AgentViewModel;
 import com.thoughtworks.go.server.ui.AgentsViewModel;
@@ -44,13 +44,13 @@ import com.thoughtworks.go.utils.Timeout;
 import org.apache.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.LinkedMultiValueMap;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 import static java.lang.String.format;
 
@@ -78,11 +78,6 @@ public class AgentService {
         this(agentConfigService, systemEnvironment, null, environmentConfigService, goConfigService, securityService, agentDao, uuidGenerator, serverHealthService);
         this.agentInstances = new AgentInstances(new AgentRuntimeStatus.ChangeListener() {
             public void statusUpdateRequested(AgentRuntimeInfo runtimeInfo, AgentRuntimeStatus newStatus) {
-//                if (newStatus == AgentRuntimeStatus.LostContact) {
-//                    Set<String> environments = environmentConfigService.environmentsFor(runtimeInfo.getUUId());
-//                    AgentInstance instance = AgentService.this.agentInstances.loadAgentInstance(runtimeInfo.getUUId());
-//                    emailSender.sendEmail(EmailMessageDrafter.agentLostContact(instance, environments, goConfigService.adminEmail()));
-//                }
             }
         });
     }
@@ -110,25 +105,29 @@ public class AgentService {
         agentInstances.sync(agents);
     }
 
-    public AgentInstances findPhysicalAgents() {
-        return agentInstances.findPhysicalAgents();
-    }
-
     public List<String> getUniqueAgentNames() {
-        return new ArrayList<String>(agentInstances.getAllHostNames());
+        return new ArrayList<>(agentInstances.getAllHostNames());
     }
 
     public List<String> getUniqueIPAddresses() {
-        return new ArrayList<String>(agentInstances.getAllIpAddresses());
+        return new ArrayList<>(agentInstances.getAllIpAddresses());
     }
 
     public List<String> getUniqueAgentOperatingSystems() {
-        return new ArrayList<String>(agentInstances.getAllOperatingSystems());
+        return new ArrayList<>(agentInstances.getAllOperatingSystems());
     }
 
-
+    @Deprecated // used by old code, stop using AgentViewModel
     public AgentsViewModel agents() {
-        return toAgentViewModels(agentInstances.findPhysicalAgents());
+        return toAgentViewModels(agentInstances.allAgents());
+    }
+
+    public Map<AgentInstance, Collection<String>> agentEnvironmentMap() {
+        Map<AgentInstance, Collection<String>> allAgents = new LinkedHashMap<>();
+        for (AgentInstance agentInstance : agentInstances.allAgents()) {
+            allAgents.put(agentInstance, environmentConfigService.environmentsFor(agentInstance.getUuid()));
+        }
+        return allAgents;
     }
 
     public AgentsViewModel registeredAgents() {
@@ -169,38 +168,37 @@ public class AgentService {
         return true;
     }
 
-    public void updateAgentAttributes(Username username, HttpOperationResult result, String uuid, String newHostname, String resources, String environments, TriState enable) {
+    public AgentInstance updateAgentAttributes(Username username, HttpOperationResult result, String uuid, String newHostname, String resources, String environments, TriState enable) {
         if (!hasOperatePermission(username, result)) {
-            return;
+            return null;
         }
 
         AgentInstance agentInstance = findAgent(uuid);
         if (isUnknownAgent(agentInstance, result)) {
-            return;
+            return null;
         }
 
-        try {
-            agentConfigService.updateAgentAttributes(uuid, username.getUsername().toString(), newHostname, resources, environments, enable, agentInstances);
-            result.ok(String.format("Updated agent with uuid %s.", uuid));
-        } catch (Exception e) {
-            if (e.getCause() instanceof GoConfigInvalidException || e.getCause() instanceof NoSuchEnvironmentException) {
-                result.unprocessibleEntity("Updating agents failed:", e.getMessage(), HealthStateType.general(HealthStateScope.GLOBAL));
-            } else {
-                result.internalServerError("Updating agents failed:" + e.getMessage(), HealthStateType.general(HealthStateScope.GLOBAL));
-            }
+        AgentConfig agentConfig = agentConfigService.updateAgentAttributes(uuid, username, newHostname, resources, environments, enable, agentInstances, result);
+        if (agentConfig != null) {
+            return AgentInstance.createFromConfig(agentConfig, systemEnvironment);
         }
+        return null;
+    }
+
+    public void bulkUpdateAgentAttributes(Username username, LocalizedOperationResult result, List<String> uuids, List<String> resourcesToAdd, List<String> resourcesToRemove, List<String> environmentsToAdd, List<String> environmentsToRemove, TriState enable) {
+        agentConfigService.bulkUpdateAgentAttributes(username, result, uuids, resourcesToAdd, resourcesToRemove, environmentsToAdd, environmentsToRemove, enable);
     }
 
     public void enableAgents(Username username, OperationResult operationResult, List<String> uuids) {
         if (!hasOperatePermission(username, operationResult)) {
             return;
         }
-        List<AgentInstance> agents = new ArrayList<AgentInstance>();
+        List<AgentInstance> agents = new ArrayList<>();
         if (!populateAgentInstancesForUUIDs(operationResult, uuids, agents)) {
             return;
         }
         try {
-            agentConfigService.enableAgents(agents.toArray((new AgentInstance[0])));
+            agentConfigService.enableAgents(username, agents.toArray((new AgentInstance[0])));
             operationResult.ok(String.format("Enabled %s agent(s)", uuids.size()));
         } catch (Exception e) {
             operationResult.internalServerError("Enabling agents failed:" + e.getMessage(), HealthStateType.general(HealthStateScope.GLOBAL));
@@ -211,12 +209,12 @@ public class AgentService {
         if (!hasOperatePermission(username, operationResult)) {
             return;
         }
-        List<AgentInstance> agents = new ArrayList<AgentInstance>();
+        List<AgentInstance> agents = new ArrayList<>();
         if (!populateAgentInstancesForUUIDs(operationResult, uuids, agents)) {
             return;
         }
         try {
-            agentConfigService.disableAgents(agents.toArray(new AgentInstance[0]));
+            agentConfigService.disableAgents(username, agents.toArray(new AgentInstance[0]));
             operationResult.ok(String.format("Disabled %s agent(s)", uuids.size()));
         } catch (Exception e) {
             operationResult.internalServerError("Disabling agents failed:" + e.getMessage(), HealthStateType.general(HealthStateScope.GLOBAL));
@@ -238,19 +236,14 @@ public class AgentService {
         if (!hasOperatePermission(username, operationResult)) {
             return;
         }
-        List<AgentInstance> agents = new ArrayList<AgentInstance>();
-        for (String uuid : uuids) {
-            AgentInstance agentInstance = findAgent(uuid);
-            if (isUnknownAgent(agentInstance, operationResult)) {
-                return;
-            }
-            agents.add(agentInstance);
+        List<AgentInstance> agents = new ArrayList<>();
+        if (!populateAgentInstancesForUUIDs(operationResult, uuids, agents)) {
+            return;
         }
 
-        List<AgentInstance> failedToDeleteAgents = new ArrayList<AgentInstance>();
+        List<AgentInstance> failedToDeleteAgents = new ArrayList<>();
         for (AgentInstance agentInstance : agents) {
-            boolean isBuildingOrCancelled = agentInstance.isBuilding() || agentInstance.isCancelled();
-            if (!agentInstance.isDisabled() || isBuildingOrCancelled) {
+            if (!agentInstance.canBeDeleted()) {
                 failedToDeleteAgents.add(agentInstance);
             }
         }
@@ -258,7 +251,7 @@ public class AgentService {
         agents.removeAll(failedToDeleteAgents);
 
         try {
-            agentConfigService.deleteAgents(agents.toArray(new AgentInstance[0]));
+            agentConfigService.deleteAgents(username, agents.toArray(new AgentInstance[0]));
 
             if (failedToDeleteAgents.isEmpty()) {
                 operationResult.ok(String.format("Deleted %s agent(s).", agents.size()));
@@ -275,12 +268,12 @@ public class AgentService {
         if (!hasOperatePermission(username, operationResult)) {
             return;
         }
-        List<AgentInstance> agents = new ArrayList<AgentInstance>();
+        List<AgentInstance> agents = new ArrayList<>();
         if (!populateAgentInstancesForUUIDs(operationResult, uuids, agents)) {
             return;
         }
         try {
-            agentConfigService.modifyResources(agents.toArray(new AgentInstance[0]), selections);
+            agentConfigService.modifyResources(agents.toArray(new AgentInstance[0]), selections, username);
             operationResult.ok(String.format("Resource(s) modified on %s agent(s)", uuids.size()));
         } catch (Exception e) {
             operationResult.notAcceptable("Could not modify resources:" + e.getMessage(), HealthStateType.general(HealthStateScope.GLOBAL));
@@ -291,7 +284,7 @@ public class AgentService {
         if (!hasOperatePermission(username, operationResult)) {
             return;
         }
-        List<AgentInstance> agents = new ArrayList<AgentInstance>();
+        List<AgentInstance> agents = new ArrayList<>();
         if (!populateAgentInstancesForUUIDs(operationResult, uuids, agents)) {
             return;
         }
@@ -323,20 +316,24 @@ public class AgentService {
             LOGGER.warn(
                     String.format("Agent with UUID [%s] changed IP Address from [%s] to [%s]",
                             info.getUUId(), agentConfig.getIpAddress(), info.getIpAdress()));
-            String userName = String.format("agent_%s_%s_%s", info.getUUId(), info.getIpAdress(), agentConfig.getHostNameForDispaly());
+            Username userName = agentUsername(info.getUUId(), info.getIpAdress(), agentConfig.getHostNameForDispaly());
             agentConfigService.updateAgentIpByUuid(agentConfig.getUuid(), info.getIpAdress(), userName);
         }
         agentInstances.updateAgentRuntimeInfo(info);
     }
 
-    public Registration requestRegistration(AgentRuntimeInfo agentRuntimeInfo) {
+    public Username agentUsername(String uuId, String ipAddress, String hostNameForDisplay) {
+        return new Username(String.format("agent_%s_%s_%s", uuId, ipAddress, hostNameForDisplay));
+    }
+
+    public Registration requestRegistration(Username username, AgentRuntimeInfo agentRuntimeInfo) {
         if (LOGGER.isDebugEnabled()) {
             LOGGER.debug("Agent is requesting registration " + agentRuntimeInfo);
         }
         AgentInstance agentInstance = agentInstances.register(agentRuntimeInfo);
         Registration registration = agentInstance.assignCertification();
         if (agentInstance.isRegistered()) {
-            agentConfigService.saveOrUpdateAgent(agentInstance);
+            agentConfigService.saveOrUpdateAgent(agentInstance, username);
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("New Agent approved " + agentRuntimeInfo);
             }
@@ -344,6 +341,7 @@ public class AgentService {
         return registration;
     }
 
+    @Deprecated
     public void approve(String uuid) {
         AgentInstance agentInstance = findAgentAndRefreshStatus(uuid);
         agentConfigService.approvePendingAgent(agentInstance);
@@ -384,10 +382,6 @@ public class AgentService {
         agentInstances.refresh();
     }
 
-    public int numberOfActiveRemoteAgents() {
-        return agentInstances.numberOfActiveRemoteAgents();
-    }
-
     public void building(String uuid, AgentBuildingInfo agentBuildingInfo) {
         agentInstances.building(uuid, agentBuildingInfo);
     }
@@ -416,5 +410,21 @@ public class AgentService {
 
     public AgentViewModel findAgentViewModel(String uuid) {
         return toAgentViewModel(findAgentAndRefreshStatus(uuid));
+    }
+
+    public LinkedMultiValueMap<String, ElasticAgentMetadata> allElasticAgents() {
+        return agentInstances.allElasticAgentsGroupedByPluginId();
+    }
+
+    public AgentInstance findElasticAgent(String elasticAgentId, String elasticPluginId) {
+        return agentInstances.findElasticAgent(elasticAgentId, elasticPluginId);
+    }
+
+    public AgentInstances findEnabledAgents() {
+        return agentInstances.findEnabledAgents();
+    }
+
+    public AgentInstances findDisabledAgents() {
+        return agentInstances.findDisabledAgents();
     }
 }

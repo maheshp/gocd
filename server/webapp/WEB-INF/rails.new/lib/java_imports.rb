@@ -1,5 +1,5 @@
 ##########################GO-LICENSE-START################################
-# Copyright 2014 ThoughtWorks, Inc.
+# Copyright 2015 ThoughtWorks, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -58,6 +58,8 @@ module JavaImports
   java_import com.thoughtworks.go.domain.materials.MatchedRevision unless defined? MatchedRevision
   java_import com.thoughtworks.go.domain.materials.Material unless defined? Material
   java_import com.thoughtworks.go.config.materials.Materials unless defined? Materials
+  java_import com.thoughtworks.go.config.materials.Filter unless defined? Filter
+  java_import com.thoughtworks.go.config.materials.IgnoredFiles unless defined? IgnoredFiles
   java_import com.thoughtworks.go.domain.materials.MaterialConfig unless defined? MaterialConfig
   java_import com.thoughtworks.go.config.materials.MaterialConfigs unless defined? MaterialConfigs
   java_import com.thoughtworks.go.domain.materials.Modification unless defined? Modification
@@ -108,7 +110,6 @@ module JavaImports
   java_import com.thoughtworks.go.domain.testinfo.StageTestRuns unless defined? StageTestRuns
   java_import com.thoughtworks.go.domain.testinfo.TestStatus unless defined? TestStatus
   java_import com.thoughtworks.go.config.TrackingTool unless defined? TrackingTool
-  java_import com.thoughtworks.go.config.TrackingTool unless defined? TrackingTool
   java_import com.thoughtworks.go.domain.User unless defined? User
   java_import com.thoughtworks.go.i18n.Localizer unless defined? Localizer
   java_import com.thoughtworks.go.i18n.LocalizedMessage unless defined? LocalizedMessage
@@ -141,6 +142,7 @@ module JavaImports
   java_import com.thoughtworks.go.serverhealth.ServerHealthState unless defined? ServerHealthState
   java_import com.thoughtworks.go.server.scheduling.ScheduleOptions unless defined? ScheduleOptions
   java_import com.thoughtworks.go.server.service.AgentRuntimeInfo unless defined? AgentRuntimeInfo
+  java_import com.thoughtworks.go.server.service.AgentBuildingInfo unless defined? AgentBuildingInfo
   java_import com.thoughtworks.go.server.service.ChangesetService unless defined? ChangesetService
   java_import com.thoughtworks.go.server.service.PipelineStagesFeedService unless defined? PipelineStagesFeedService
   java_import com.thoughtworks.go.server.service.result.DefaultLocalizedResult unless defined? DefaultLocalizedResult
@@ -205,6 +207,7 @@ module JavaImports
   java_import com.thoughtworks.go.domain.packagerepository.PackageRepository unless defined? PackageRepository
   java_import com.thoughtworks.go.domain.packagerepository.PackageDefinition unless defined? PackageDefinition
   java_import com.thoughtworks.go.domain.packagerepository.PackageRepositories unless defined? PackageRepositories
+  java_import com.thoughtworks.go.domain.scm.SCM unless defined? SCM
   java_import com.thoughtworks.go.domain.config.Configuration unless defined? Configuration
   java_import com.thoughtworks.go.domain.config.ConfigurationProperty unless defined? ConfigurationProperty
   java_import com.thoughtworks.go.domain.packagerepository.Packages unless defined? Packages
@@ -234,4 +237,17 @@ module JavaImports
   java_import com.thoughtworks.go.config.pluggabletask.PluggableTask unless defined? PluggableTask
   java_import com.thoughtworks.go.plugin.access.pluggabletask.PluggableTaskConfigStore unless defined? PluggableTaskConfigStore
   java_import com.thoughtworks.go.server.service.support.toggle.Toggles unless defined? Toggles
+  java_import com.thoughtworks.go.config.AuthConfig unless defined? AuthConfig
+  java_import com.thoughtworks.go.config.RunIfConfig unless defined? RunIfConfig
+  java_import com.thoughtworks.go.domain.RunIfConfigs unless defined? RunIfConfigs
+  java_import com.thoughtworks.go.plugin.api.task.TaskConfigProperty unless defined? TaskConfigProperty
+  java_import com.thoughtworks.go.config.PipelineConfigSaveValidationContext unless defined? PipelineConfigSaveValidationContext
+  java_import com.thoughtworks.go.domain.GoVersion unless defined? GoVersion
+  java_import com.thoughtworks.go.domain.VersionInfo unless defined? VersionInfo
+  java_import com.thoughtworks.go.server.ui.plugins.PluginInfo unless defined? PluginInfo
+  java_import com.thoughtworks.go.server.ui.plugins.PluggableInstanceSettings unless defined? PluggableInstanceSettings
+  java_import com.thoughtworks.go.server.service.plugins.InvalidPluginTypeException unless defined? InvalidPluginTypeException
+  java_import com.thoughtworks.go.server.service.EntityHashingService unless defined? EntityHashingService
+  java_import com.thoughtworks.go.config.EnvironmentAgentConfig unless defined? EnvironmentAgentConfig
+  java_import com.thoughtworks.go.config.EnvironmentVariableConfig unless defined? EnvironmentVariableConfig
 end

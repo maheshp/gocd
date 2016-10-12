@@ -1,0 +1,115 @@
+/*
+ * Copyright 2016 ThoughtWorks, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+description = 'GoCD build tools'
+apply from: 'lint.gradle'
+
+repositories {
+  maven { url 'http://rubygems-proxy.torquebox.org/releases/' }
+}
+
+configurations {
+  jrubyDist
+  jrubyGems
+  jrubyGemsRuby2
+}
+
+dependencies {
+  jrubyDist group: 'org.jruby', name: 'jruby-dist', version: '1.7.11', classifier: 'bin', ext: 'tar.gz'
+  jrubyGems group: 'rubygems', name: 'bundler', version: '1.9.9'
+
+  jrubyGemsRuby2 group: 'rubygems', name: 'scss_lint', version: '0.50.1'
+}
+
+task prepareJRuby {
+  inputs.files project.configurations.jrubyDist.files + project.configurations.jrubyGems.files + project.configurations.jrubyGemsRuby2.files
+  outputs.dir project.file('jruby')
+
+  doFirst {
+    project.delete('jruby')
+    project.delete('jruby-1.7.11')
+
+    def copyDetails = []
+
+    project.copy {
+      from tarTree(project.files(project.configurations.jrubyDist.files).singleFile)
+      into project.projectDir
+      eachFile { copyDetails << it }
+    }
+
+    // we do this so IntelliJ does not re-index it over and over again
+    copyDetails.each { FileCopyDetails details ->
+      def target = new File(project.projectDir, details.path)
+      if (target.exists()) {
+        target.setLastModified(details.lastModified)
+      }
+    }
+
+    project.file('jruby-1.7.11').renameTo(project.file('jruby'))
+
+    exec {
+      standardOutput = System.out
+      errorOutput = System.err
+
+      if (org.gradle.internal.os.OperatingSystem.current().isWindows()) {
+        setExecutable project.file("bin/jruby.bat")
+      } else {
+        setExecutable project.file("bin/jruby")
+      }
+
+      args = ['-S', 'gem', 'install', '--quiet', '--no-ri', '--no-rdoc', '--local', '--ignore-dependencies']
+      args += project.configurations.jrubyGems.files
+    }
+
+    exec {
+      standardOutput = System.out
+      errorOutput = System.err
+
+      if (isWindows()) {
+        setExecutable project.file("bin/jruby.bat")
+      } else {
+        setExecutable project.file("bin/jruby")
+      }
+      args = ['--2.0', '-S', 'gem', 'install', '--quiet', '--no-ri', '--no-rdoc', '--local', '--ignore-dependencies']
+      args += project.configurations.jrubyGemsRuby2.files
+    }
+  }
+}
+
+private boolean isWindows() {
+  org.gradle.internal.os.OperatingSystem.current().isWindows()
+}
+
+task prepareNodeJS(type: Exec) {
+  inputs.file project.file("package.json")
+  outputs.dir project.file('node_modules')
+
+  standardOutput = System.out
+  errorOutput = System.err
+
+  commandLine = [ isWindows() ? "npm.cmd" : "npm", "install"]
+}
+
+clean.doFirst {
+  project.delete('jruby')
+  project.delete('jruby-1.7.11')
+  project.delete('node_modules')
+}
+
+task prepare {
+  dependsOn prepareJRuby
+  dependsOn prepareNodeJS
+}

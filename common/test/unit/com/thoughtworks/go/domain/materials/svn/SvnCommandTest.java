@@ -1,5 +1,5 @@
 /*************************GO-LICENSE-START*********************************
- * Copyright 2014 ThoughtWorks, Inc.
+ * Copyright 2016 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,10 +19,7 @@ package com.thoughtworks.go.domain.materials.svn;
 import com.googlecode.junit.ext.JunitExtRunner;
 import com.googlecode.junit.ext.RunIf;
 import com.thoughtworks.go.config.materials.svn.SvnMaterial;
-import com.thoughtworks.go.domain.materials.Modification;
-import com.thoughtworks.go.domain.materials.ModifiedFile;
-import com.thoughtworks.go.domain.materials.TestSubprocessExecutionContext;
-import com.thoughtworks.go.domain.materials.ValidationBean;
+import com.thoughtworks.go.domain.materials.*;
 import com.thoughtworks.go.helper.SvnTestRepo;
 import com.thoughtworks.go.junitext.EnhancedOSChecker;
 import com.thoughtworks.go.util.FileUtil;
@@ -57,7 +54,6 @@ import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.*;
 
 @RunWith(JunitExtRunner.class)
@@ -115,7 +111,7 @@ public class SvnCommandTest {
         assertThat(output.getAllOutput(), containsString("Checked out revision 3"));
 
         InMemoryStreamConsumer output2 = new InMemoryStreamConsumer();
-        material.updateTo(output2, new SubversionRevision("4"), working, new TestSubprocessExecutionContext());
+        material.updateTo(output2, working, new RevisionContext(new SubversionRevision("4")), new TestSubprocessExecutionContext());
         assertThat(output2.getAllOutput(), containsString("Updated to revision 4"));
 
     }
@@ -131,9 +127,13 @@ public class SvnCommandTest {
         assertThat(output.getAllOutput(), containsString("Checked out revision 3"));
 
         InMemoryStreamConsumer output2 = new InMemoryStreamConsumer();
-        material.updateTo(output2, new SubversionRevision("4"), working, new TestSubprocessExecutionContext());
+        updateMaterial(material, new SubversionRevision("4"), working, output2);
         assertThat(output2.getAllOutput(), containsString("Updated to revision 4"));
 
+    }
+
+    private void updateMaterial(SvnMaterial material, SubversionRevision revision, File working, InMemoryStreamConsumer output2) {
+        material.updateTo(output2, working, new RevisionContext(revision), new TestSubprocessExecutionContext());
     }
 
 
@@ -149,7 +149,7 @@ public class SvnCommandTest {
         assertThat(output.getAllOutput(), containsString("Checked out revision 3"));
 
         InMemoryStreamConsumer output2 = new InMemoryStreamConsumer();
-        material.updateTo(output2, new SubversionRevision("4"), working, new TestSubprocessExecutionContext());
+        updateMaterial(material, new SubversionRevision("4"), working, output2);
         assertThat(output2.getAllOutput(), containsString("Updated to revision 4"));
 
     }
@@ -293,7 +293,7 @@ public class SvnCommandTest {
                 + "</entry>\n"
                 + "</info>";
         SvnCommand.SvnInfo svnInfo = new SvnCommand.SvnInfo();
-        svnInfo.parse(output, new SAXBuilder(false));
+        svnInfo.parse(output, new SAXBuilder());
         assertThat(svnInfo.getPath(), is("/bloresvn/TISSIP/branch/DEV/PurchaseDeliverables"));
         assertThat(svnInfo.getUrl(),
                 is("http://svn.somewhere.com/someotherline/bloresvn/TISSIP/branch/DEV/PurchaseDeliverables"));
@@ -320,7 +320,7 @@ public class SvnCommandTest {
                 + "</entry>\n"
                 + "</info>";
         SvnCommand.SvnInfo svnInfo = new SvnCommand.SvnInfo();
-        svnInfo.parse(output, new SAXBuilder(false));
+        svnInfo.parse(output, new SAXBuilder());
         assertThat(svnInfo.getPath(), is("/someotherline"));
         assertThat(svnInfo.getUrl(),
                 is("http://svn.somewhere.com/svn/someotherline"));
@@ -348,7 +348,7 @@ public class SvnCommandTest {
                 + "</entry>\n"
                 + "</info>";
         SvnCommand.SvnInfo svnInfo = new SvnCommand.SvnInfo();
-        svnInfo.parse(output, new SAXBuilder(false));
+        svnInfo.parse(output, new SAXBuilder());
         assertThat(svnInfo.getPath(), is("/司徒空在此"));
         assertThat(svnInfo.getUrl(),
                 is("file:///home/cceuser/bigfs/projects/cruise/common/test-resources/unit/data/svnrepo/end2end/%E5%8F%B8%E5%BE%92%E7%A9%BA%E5%9C%A8%E6%AD%A4"));
@@ -375,7 +375,7 @@ public class SvnCommandTest {
                 + "</entry>\n"
                 + "</info>";
         SvnCommand.SvnInfo svnInfo = new SvnCommand.SvnInfo();
-        svnInfo.parse(output, new SAXBuilder(false));
+        svnInfo.parse(output, new SAXBuilder());
         assertThat(svnInfo.getUrl(), is("https://217.45.214.17:8443/svn/Entropy%20System/Envoy%20Enterprise/trunk"));
         assertThat(svnInfo.getPath(), is("/Entropy System/Envoy Enterprise/trunk"));
     }
@@ -401,7 +401,7 @@ public class SvnCommandTest {
                 + "</entry>\n"
                 + "</info>";
         SvnCommand.SvnInfo svnInfo = new SvnCommand.SvnInfo();
-        svnInfo.parse(output, new SAXBuilder(false));
+        svnInfo.parse(output, new SAXBuilder());
         assertThat(svnInfo.getUrl(), is("file:///C:/Documents%20and%20Settings/cceuser/Local%20Settings/Temp/testSvnRepo-1243722556125/end2end/unit-reports"));
         assertThat(svnInfo.getPath(), is("/unit-reports"));
     }
@@ -427,7 +427,7 @@ public class SvnCommandTest {
                 + "</entry>\n"
                 + "</info>";
         SvnCommand.SvnInfo svnInfo = new SvnCommand.SvnInfo();
-        svnInfo.parse(output, new SAXBuilder(false));
+        svnInfo.parse(output, new SAXBuilder());
         assertThat(svnInfo.getUrl(), is("svn+ssh://hostname/foo%20bar%20baz/end2end"));
         assertThat(svnInfo.getPath(), is("/end2end"));
     }
@@ -452,10 +452,10 @@ public class SvnCommandTest {
     }
 
     @Test
-    public void shouldAddEmptyPasswordWhenUsernameIsProvidedWithNoPassword() throws IOException {
+    public void shouldNotAddEmptyPasswordWhenUsernameIsProvidedWithNoPassword() throws IOException {
         SvnCommand command = new SvnCommand(null, "url", "shilpaIsGreat", null, false);
         CommandArgument argument = new StringArgument(String.format("--password="));
-        assertThat(command.buildSvnLogCommandForLatestOne().getArguments(), hasItem(argument));
+        assertThat(command.buildSvnLogCommandForLatestOne().getArguments(), not(hasItem(argument)));
     }
 
     @Test

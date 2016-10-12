@@ -1,5 +1,5 @@
 /*************************GO-LICENSE-START*********************************
- * Copyright 2014 ThoughtWorks, Inc.
+ * Copyright 2016 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,16 @@
 
 package com.thoughtworks.go.server.service;
 
+import com.google.gson.annotations.Expose;
+
 import java.io.Serializable;
 
 import static com.thoughtworks.go.util.ExceptionUtils.bombIfNull;
 
 public class AgentBuildingInfo implements Serializable {
+    @Expose
     private final String buildingInfo;
+    @Expose
     private final String buildLocator;
     public static final AgentBuildingInfo NOT_BUILDING = new AgentBuildingInfo("", "");
 
@@ -65,6 +69,35 @@ public class AgentBuildingInfo implements Serializable {
         result = (buildingInfo != null ? buildingInfo.hashCode() : 0);
         result = 31 * result + (buildLocator != null ? buildLocator.hashCode() : 0);
         return result;
+    }
+
+    public String getPipelineName() {
+        if(isBuilding()) {
+            return buildLocator.split("/")[0];
+        }
+        return null;
+    }
+
+    public String getJobName() {
+        if (isBuilding()) {
+            try {
+                return buildLocator.split("/")[4];
+            } catch (ArrayIndexOutOfBoundsException e) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    public String getStageName() {
+        if(isBuilding()) {
+            try {
+                return buildLocator.split("/")[2];
+            } catch (ArrayIndexOutOfBoundsException e) {
+                return null;
+            }
+        }
+        return null;
     }
 
     public boolean isBuilding() {

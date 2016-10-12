@@ -1,5 +1,5 @@
-/*************************GO-LICENSE-START*********************************
- * Copyright 2014 ThoughtWorks, Inc.
+/*
+ * Copyright 2016 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *************************GO-LICENSE-END***********************************/
+ */
 
 package com.thoughtworks.go.config;
 
@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.thoughtworks.go.config.remote.ConfigOrigin;
+import com.thoughtworks.go.config.remote.ConfigReposConfig;
 import com.thoughtworks.go.domain.ConfigErrors;
 import com.thoughtworks.go.domain.EnvironmentPipelineMatcher;
 import com.thoughtworks.go.util.command.EnvironmentVariableContext;
@@ -52,17 +53,19 @@ public class BasicEnvironmentConfig implements EnvironmentConfig {
 
     @Override
     public void validate(ValidationContext validationContext) {
-        CruiseConfig cruiseConfig = validationContext.getCruiseConfig();
         // each of these references is defined in this.origin
-        for(EnvironmentPipelineConfig pipelineRefConfig : this.pipelines)
-        {
-            PipelineConfig pipelineConfig = cruiseConfig.getPipelineConfigByName(pipelineRefConfig.getName());
-            if(pipelineConfig == null)
+        for (EnvironmentPipelineConfig pipelineRefConfig : this.pipelines) {
+            ConfigReposConfig configRepos = validationContext.getConfigRepos();
+            PipelineConfig pipelineConfig = validationContext.getPipelineConfigByName(pipelineRefConfig.getName());
+            if (pipelineConfig == null) {
                 continue;//other rule will error that we reference unknown pipeline
-            if(!cruiseConfig.getConfigRepos().isReferenceAllowed(this.origin,pipelineConfig.getOrigin()))
-                pipelineRefConfig.addError(EnvironmentPipelineConfig.ORIGIN,
-                        String.format("Environment defined in %s cannot reference a pipeline in %s",
-                                this.origin,displayNameFor(pipelineConfig.getOrigin())));
+            }
+            if (validationContext.shouldCheckConfigRepo()) {
+                if (!configRepos.isReferenceAllowed(this.origin, pipelineConfig.getOrigin()))
+                    pipelineRefConfig.addError(EnvironmentPipelineConfig.ORIGIN,
+                            String.format("Environment defined in %s cannot reference a pipeline in %s",
+                                    this.origin, displayNameFor(pipelineConfig.getOrigin())));
+            }
         }
     }
 
@@ -96,10 +99,12 @@ public class BasicEnvironmentConfig implements EnvironmentConfig {
     }
 
     @Override
-    public void validateContainsOnlyUuids(Set<String> uuids) {
+    public boolean validateContainsOnlyUuids(Set<String> uuids) {
+        boolean isValid = true;
         for (EnvironmentAgentConfig agent : agents) {
-            agent.validateUuidPresent(name, uuids);
+            isValid = agent.validateUuidPresent(name, uuids) && isValid;
         }
+        return isValid;
     }
 
     @Override
@@ -136,6 +141,11 @@ public class BasicEnvironmentConfig implements EnvironmentConfig {
     }
 
     @Override
+    public void removePipeline(final CaseInsensitiveString pipelineName) {
+        pipelines.remove(new EnvironmentPipelineConfig(pipelineName));
+    }
+
+    @Override
     public boolean contains(String pipelineName) {
         return pipelines.containsPipelineNamed(new CaseInsensitiveString(pipelineName));
     }
@@ -162,9 +172,18 @@ public class BasicEnvironmentConfig implements EnvironmentConfig {
         return name;
     }
 
+    public void setName(CaseInsensitiveString name) {
+        this.name = name;
+    }
+
     @Override
     public EnvironmentAgentsConfig getAgents() {
         return agents;
+    }
+
+    public void setAgents(List<EnvironmentAgentConfig> agents) {
+        this.agents.clear();
+        this.agents.addAll(agents);
     }
 
     @Override
@@ -229,7 +248,7 @@ public class BasicEnvironmentConfig implements EnvironmentConfig {
 
     @Override
     public List<CaseInsensitiveString> getPipelineNames() {
-        ArrayList<CaseInsensitiveString> pipelineNames = new ArrayList<CaseInsensitiveString>();
+        ArrayList<CaseInsensitiveString> pipelineNames = new ArrayList<>();
         for (EnvironmentPipelineConfig pipeline : pipelines) {
             pipelineNames.add(pipeline.getName());
         }
@@ -241,6 +260,11 @@ public class BasicEnvironmentConfig implements EnvironmentConfig {
         return pipelines;
     }
 
+    public void setPipelines(List<EnvironmentPipelineConfig> pipelines) {
+        this.pipelines.clear();
+        this.pipelines.addAll(pipelines);
+    }
+
     @Override
     public boolean hasVariable(String variableName) {
         return variables.hasVariable(variableName);
@@ -249,6 +273,10 @@ public class BasicEnvironmentConfig implements EnvironmentConfig {
     @Override
     public EnvironmentVariablesConfig getVariables() {
         return variables;
+    }
+
+    public void setVariables(EnvironmentVariablesConfig environmentVariables) {
+        this.variables = environmentVariables;
     }
 
     @Override
@@ -280,6 +308,14 @@ public class BasicEnvironmentConfig implements EnvironmentConfig {
     }
 
     @Override
+    public EnvironmentConfig getLocal() {
+        if(this.isLocal())
+            return this;
+        else
+            return null;
+    }
+
+    @Override
     public ConfigOrigin getOrigin() {
         return origin;
     }
@@ -287,5 +323,45 @@ public class BasicEnvironmentConfig implements EnvironmentConfig {
     @Override
     public void setOrigins(ConfigOrigin origins) {
         this.origin = origins;
+        for(EnvironmentVariableConfig environmentVariableConfig : this.variables)
+        {
+            environmentVariableConfig.setOrigins(origins);
+        }
     }
+
+    @Override
+    public EnvironmentPipelinesConfig getRemotePipelines() {
+        if(this.isLocal())
+            return new EnvironmentPipelinesConfig();
+        else
+            return this.pipelines;
+    }
+
+    @Override
+    public EnvironmentAgentsConfig getLocalAgents() {
+        if(this.isLocal())
+            return this.agents;
+        else
+            return new EnvironmentAgentsConfig();
+    }
+
+    public boolean isLocal() {
+        return this.origin == null || this.origin.isLocal();
+    }
+
+    @Override
+    public boolean isEnvironmentEmpty() {
+        return this.variables.isEmpty() && this.agents.isEmpty() && this.pipelines.isEmpty();
+    }
+
+    @Override
+    public boolean containsPipelineRemotely(CaseInsensitiveString pipelineName) {
+        if(this.isLocal())
+            return false;
+        if(!this.containsPipeline(pipelineName))
+            return false;
+
+        return true;
+    }
+
 }

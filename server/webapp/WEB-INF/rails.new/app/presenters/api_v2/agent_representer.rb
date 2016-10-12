@@ -1,5 +1,5 @@
 ##########################################################################
-# Copyright 2015 ThoughtWorks, Inc.
+# Copyright 2016 ThoughtWorks, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,17 +16,20 @@
 
 module ApiV2
   class AgentRepresenter < ApiV2::BaseRepresenter
-
     java_import com.thoughtworks.go.domain.AgentRuntimeStatus
 
     alias_method :agent, :represented
+
+    error_representer({
+                          'ipAddress' => 'ip_address'
+                      })
 
     link :self do |opts|
       opts[:url_builder].apiv2_agent_url(agent.getUuid())
     end
 
     link :doc do |opts|
-      'http://api.go.cd/#agents'
+      'https://api.go.cd/#agents'
     end
 
     link :find do |opts|
@@ -44,27 +47,18 @@ module ApiV2
     property :build_state, exec_context: :decorator
     property :resources, exec_context: :decorator
     property :environments, exec_context: :decorator
+    property :errors, exec_context: :decorator, decorator: ApiV2::Config::ErrorRepresenter, skip_parse: true, skip_render: lambda { |object, options| object.empty? }
 
     def agent_config_state
       agent.getAgentConfigStatus()
     end
 
     def agent_state
-      if runtime_status.in?([AgentRuntimeStatus::LostContact, AgentRuntimeStatus::Missing, AgentRuntimeStatus::Idle, AgentRuntimeStatus::Building])
-        runtime_status
-      elsif runtime_status.in?([AgentRuntimeStatus::Cancelled])
-        AgentRuntimeStatus::Building
-      else
-        AgentRuntimeStatus::Unknown
-      end
+      runtime_status.agentState
     end
 
     def build_state
-      if runtime_status.in?([AgentRuntimeStatus::Building, AgentRuntimeStatus::Cancelled, AgentRuntimeStatus::Idle])
-        runtime_status
-      else
-        AgentRuntimeStatus::Unknown
-      end
+      runtime_status.buildState
     end
 
     def resources #because you know - java.util.ArrayList

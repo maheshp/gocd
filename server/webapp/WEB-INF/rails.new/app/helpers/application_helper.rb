@@ -1,5 +1,5 @@
 ##########################GO-LICENSE-START################################
-# Copyright 2014 ThoughtWorks, Inc.
+# Copyright 2016 ThoughtWorks, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -249,8 +249,15 @@ module ApplicationHelper
   end
 
   def version
-    version_file = Rails.root.join("..", "vm", "admin", "admin_version.txt.vm")
-    File.readlines(version_file)[0]
+    ApiV1::VersionRepresenter.version.full_version
+  end
+
+  def go_update
+    version_info_service.getGoUpdate
+  end
+
+  def check_go_updates?
+    version_info_service.isGOUpdateCheckEnabled
   end
 
   def json_escape data
@@ -362,17 +369,6 @@ module ApplicationHelper
     "</div></div>".html_safe
   end
 
-  def word_breaker(txt, break_at_length=15)
-    loop_count = txt.length / break_at_length;
-    new_txt = txt.clone
-    i = 0
-    while i < loop_count do
-      i+=1
-      new_txt.insert(i*break_at_length, "<wbr/>")
-    end
-    return new_txt.html_safe
-  end
-
   def selections
     Array(params[:selections]).map do |entry|
       TriStateSelection.new(*entry)
@@ -391,33 +387,13 @@ module ApplicationHelper
     Integer(s) rescue false
   end
 
-  def smart_word_breaker(txt)
-    splitTxt = txt.split(/-/)
-    i=0
-    while i < splitTxt.length do
-      segment = splitTxt[i]
-      break_at_length = 15
-      divisions = (segment.length/break_at_length)
-      if divisions >= 1
-        j = 1
-        while j <= divisions
-          segment.insert(break_at_length*j, "<wbr/>")
-          j += 1
-        end
-      end
-      splitTxt[i] = segment
-      i+=1
-    end
-    return splitTxt.join("-<wbr/>").html_safe
-  end
-
   def make_https url
     uri = org.apache.commons.httpclient.URI.new(url, "UTF-8")
     org.apache.commons.httpclient.URI.new("https", uri.getUserinfo(), uri.getHost(), system_environment.getSslServerPort(), uri.getPath(), uri.getQuery(), uri.getFragment()).to_s
   end
 
   def config_md5_field
-    "<input type=\"hidden\" name=\"cruise_config_md5\" value=\"#{cruise_config_md5}\"/>".html_safe
+    hidden_field_tag('cruise_config_md5', cruise_config_md5)
   end
 
   def unauthorized_access
@@ -472,6 +448,14 @@ module ApplicationHelper
 
   def form_remote_tag_new(options = {})
     form_remote_tag(options)
+  end
+
+  def is_pipeline_config_spa_enabled?
+    Toggles.isToggleOn(Toggles.PIPELINE_CONFIG_SINGLE_PAGE_APP)
+  end
+
+  def is_agents_spa_enabled?
+    Toggles.isToggleOn(Toggles.AGENTS_SINGLE_PAGE_APP);
   end
 
   private

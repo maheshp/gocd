@@ -1,5 +1,5 @@
-/*************************GO-LICENSE-START*********************************
- * Copyright 2014 ThoughtWorks, Inc.
+/*
+ * Copyright 2016 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,15 +12,14 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *************************GO-LICENSE-END***********************************/
+ */
 
 package com.thoughtworks.go.server.materials;
 
-import com.thoughtworks.go.config.BasicCruiseConfig;
-import com.thoughtworks.go.config.CaseInsensitiveString;
-import com.thoughtworks.go.config.CruiseConfig;
-import com.thoughtworks.go.config.GoConfigWatchList;
+import com.thoughtworks.go.config.*;
+import com.thoughtworks.go.config.materials.MaterialConfigs;
 import com.thoughtworks.go.config.materials.ScmMaterial;
+import com.thoughtworks.go.config.materials.git.GitMaterialConfig;
 import com.thoughtworks.go.config.materials.svn.SvnMaterial;
 import com.thoughtworks.go.config.materials.svn.SvnMaterialConfig;
 import com.thoughtworks.go.domain.PipelineGroups;
@@ -30,9 +29,8 @@ import com.thoughtworks.go.helper.MaterialConfigsMother;
 import com.thoughtworks.go.helper.MaterialsMother;
 import com.thoughtworks.go.helper.PipelineConfigMother;
 import com.thoughtworks.go.i18n.LocalizedMessage;
-import com.thoughtworks.go.metrics.domain.context.Context;
-import com.thoughtworks.go.metrics.domain.probes.ProbeType;
-import com.thoughtworks.go.metrics.service.MetricsProbeService;
+import com.thoughtworks.go.listener.ConfigChangedListener;
+import com.thoughtworks.go.listener.EntityConfigChangedListener;
 import com.thoughtworks.go.server.domain.Username;
 import com.thoughtworks.go.server.materials.postcommit.PostCommitHookImplementer;
 import com.thoughtworks.go.server.materials.postcommit.PostCommitHookMaterialType;
@@ -59,10 +57,6 @@ import static com.thoughtworks.go.helper.MaterialUpdateMessageMatcher.matchMater
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
-import static org.mockito.Matchers.anyMap;
-import static org.mockito.Matchers.anySet;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.*;
 
 public class MaterialUpdateServiceTest {
@@ -81,7 +75,6 @@ public class MaterialUpdateServiceTest {
     private PostCommitHookMaterialType invalidMaterialType;
     private ServerHealthService serverHealthService;
     private SystemEnvironment systemEnvironment;
-    private MetricsProbeService metricsProbeService;
     private MaterialConfigConverter materialConfigConverter;
 
     @Before
@@ -94,7 +87,7 @@ public class MaterialUpdateServiceTest {
         postCommitHookMaterialType = mock(PostCommitHookMaterialTypeResolver.class);
         serverHealthService = mock(ServerHealthService.class);
         systemEnvironment = new SystemEnvironment();
-        metricsProbeService = mock(MetricsProbeService.class);
+
         materialConfigConverter = mock(MaterialConfigConverter.class);
         MDUPerformanceLogger mduPerformanceLogger = mock(MDUPerformanceLogger.class);
         service = new MaterialUpdateService(queue,configQueue , completed,watchList, goConfigService, systemEnvironment,
@@ -205,7 +198,7 @@ public class MaterialUpdateServiceTest {
         service.notifyMaterialsForUpdate(username, params, result);
 
         HttpLocalizedOperationResult operationResult = new HttpLocalizedOperationResult();
-        operationResult.notFound(LocalizedMessage.string("MATERIAL_NOT_FOUND"), HealthStateType.general(HealthStateScope.GLOBAL));
+        operationResult.notFound(LocalizedMessage.string("MATERIAL_SUITABLE_FOR_NOTIFICATION_NOT_FOUND"), HealthStateType.general(HealthStateScope.GLOBAL));
 
         assertThat(result, is(operationResult));
 
@@ -322,10 +315,29 @@ public class MaterialUpdateServiceTest {
     }
 
     @Test
+    public void shouldClearSchedulableMaterialCacheOnPipelineConfigChange() {
+        ArgumentCaptor<ConfigChangedListener> captor = ArgumentCaptor.forClass(ConfigChangedListener.class);
+        doNothing().when(goConfigService).register(captor.capture());
+        service.initialize();
+        List<ConfigChangedListener> listeners = captor.getAllValues();
+        assertThat(listeners.get(1) instanceof EntityConfigChangedListener, is(true));
+        EntityConfigChangedListener<PipelineConfig> pipelineConfigChangeListener= (EntityConfigChangedListener<PipelineConfig>) listeners.get(1);
+
+        when(serverHealthService.getAllLogs()).thenReturn(new ServerHealthStates());
+        when(goConfigService.getCurrentConfig()).thenReturn(mock(CruiseConfig.class));
+        service.onTimer();
+        PipelineConfig pipelineConfig = mock(PipelineConfig.class);
+        when(pipelineConfig.materialConfigs()).thenReturn(new MaterialConfigs(new GitMaterialConfig("url")));
+
+        pipelineConfigChangeListener.onEntityConfigChange(pipelineConfig);
+        service.onTimer();
+        verify(goConfigService, times(2)).getSchedulableMaterials();
+    }
+
+    @Test
     public void shouldAllowPostCommitNotificationsToPassThroughToTheQueue_WhenTheSameMaterialIsCurrentlyInProgressAndMaterialIsAutoUpdateFalse() throws Exception {
         ScmMaterial material = mock(ScmMaterial.class);
         when(material.isAutoUpdate()).thenReturn(false);
-        when(metricsProbeService.begin(ProbeType.MATERIAL_UPDATE_QUEUE_COUNTER)).thenReturn(mock(Context.class));
         MaterialUpdateMessage message = new MaterialUpdateMessage(material, 0);
         doNothing().when(queue).post(message);
         service.updateMaterial(material); //prune inprogress queue to have this material in it
@@ -335,10 +347,23 @@ public class MaterialUpdateServiceTest {
     }
 
     @Test
+    public void shouldNotAllowPostCommitNotificationsToPassThroughToTheConfigQueue_WhenTheSameMaterialIsCurrentlyInProgressAndMaterialIsAutoUpdateTrueAndMaterialIsConfigRepo() throws Exception {
+        ScmMaterial material = mock(ScmMaterial.class);
+        when(material.isAutoUpdate()).thenReturn(true);
+        when(material.getFingerprint()).thenReturn("fingerprint");
+        when(watchList.hasConfigRepoWithFingerprint("fingerprint")).thenReturn(true);
+        MaterialUpdateMessage message = new MaterialUpdateMessage(material, 0);
+        doNothing().when(configQueue).post(message);
+        service.updateMaterial(material); //prune inprogress queue to have this material in it
+        service.updateMaterial(material); // immediately notify another check-in
+        verify(configQueue, times(1)).post(message);
+        verify(material).isAutoUpdate();
+    }
+
+    @Test
     public void shouldNotAllowPostCommitNotificationsToPassThroughToTheQueue_WhenTheSameMaterialIsCurrentlyInProgressAndMaterialIsAutoUpdateTrue() throws Exception {
         ScmMaterial material = mock(ScmMaterial.class);
         when(material.isAutoUpdate()).thenReturn(true);
-        when(metricsProbeService.begin(ProbeType.MATERIAL_UPDATE_QUEUE_COUNTER)).thenReturn(mock(Context.class));
         MaterialUpdateMessage message = new MaterialUpdateMessage(material, 0);
         doNothing().when(queue).post(message);
         service.updateMaterial(material); //prune inprogress queue to have this material in it
@@ -351,7 +376,6 @@ public class MaterialUpdateServiceTest {
     public void shouldAllowPostCommitNotificationsToPassThroughToTheQueue_WhenTheSameMaterialIsNotCurrentlyInProgressAndMaterialIsAutoUpdateTrue() throws Exception {
         ScmMaterial material = mock(ScmMaterial.class);
         when(material.isAutoUpdate()).thenReturn(true);
-        when(metricsProbeService.begin(ProbeType.MATERIAL_UPDATE_QUEUE_COUNTER)).thenReturn(mock(Context.class));
         MaterialUpdateMessage message = new MaterialUpdateMessage(material, 0);
         doNothing().when(queue).post(message);
         service.updateMaterial(material); // first call to the method
@@ -363,7 +387,6 @@ public class MaterialUpdateServiceTest {
     public void shouldAllowPostCommitNotificationsToPassThroughToTheQueue_WhenTheSameMaterialIsNotCurrentlyInProgressAndMaterialIsAutoUpdateFalse() throws Exception {
         ScmMaterial material = mock(ScmMaterial.class);
         when(material.isAutoUpdate()).thenReturn(false);
-        when(metricsProbeService.begin(ProbeType.MATERIAL_UPDATE_QUEUE_COUNTER)).thenReturn(mock(Context.class));
         MaterialUpdateMessage message = new MaterialUpdateMessage(material, 0);
         doNothing().when(queue).post(message);
         service.updateMaterial(material); // first call to the method

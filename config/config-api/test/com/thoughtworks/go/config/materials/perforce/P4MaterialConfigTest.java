@@ -1,5 +1,5 @@
-/*************************GO-LICENSE-START*********************************
- * Copyright 2014 ThoughtWorks, Inc.
+/*
+ * Copyright 2016 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,12 +12,12 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *************************GO-LICENSE-END***********************************/
+ */
 
 package com.thoughtworks.go.config.materials.perforce;
 
 import com.thoughtworks.go.config.CaseInsensitiveString;
-import com.thoughtworks.go.config.ValidationContext;
+import com.thoughtworks.go.config.ConfigSaveValidationContext;
 import com.thoughtworks.go.config.materials.AbstractMaterialConfig;
 import com.thoughtworks.go.config.materials.Filter;
 import com.thoughtworks.go.config.materials.IgnoredFiles;
@@ -25,6 +25,7 @@ import com.thoughtworks.go.config.materials.ScmMaterialConfig;
 import com.thoughtworks.go.config.materials.svn.SvnMaterialConfig;
 import com.thoughtworks.go.security.GoCipher;
 import com.thoughtworks.go.util.ReflectionUtil;
+import com.thoughtworks.go.util.command.UrlArgument;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -134,15 +135,30 @@ public class P4MaterialConfigTest {
         assertThat(p4MaterialConfig.getUseTickets(), is(false));
     }
 
+    @Test
+    public void shouldThrowErrorsIfBothPasswordAndEncryptedPasswordAreProvided() {
+        P4MaterialConfig materialConfig = new P4MaterialConfig("foo/bar, 80", "password", "encryptedPassword", new GoCipher());
+        materialConfig.validate(new ConfigSaveValidationContext(null));
+        assertThat(materialConfig.errors().on("password"), is("You may only specify `password` or `encrypted_password`, not both!"));
+        assertThat(materialConfig.errors().on("encryptedPassword"), is("You may only specify `password` or `encrypted_password`, not both!"));
+    }
+
+    @Test
+    public void shouldValidateWhetherTheEncryptedPasswordIsCorrect() {
+        P4MaterialConfig materialConfig = new P4MaterialConfig("foo/bar, 80", "", "encryptedPassword", new GoCipher());
+        materialConfig.validate(new ConfigSaveValidationContext(null));
+        assertThat(materialConfig.errors().on("encryptedPassword"), is("Encrypted password value for P4 material with serverAndPort 'foo/bar, 80' is invalid. This usually happens when the cipher text is modified to have an invalid value."));
+    }
+
     private void assertNoError(String port, String view, String expectedKeyForError) {
         P4MaterialConfig p4MaterialConfig = new P4MaterialConfig(port, view);
-        p4MaterialConfig.validate(new ValidationContext(null));
+        p4MaterialConfig.validate(new ConfigSaveValidationContext(null));
         assertThat(p4MaterialConfig.errors().on(expectedKeyForError), is(nullValue()));
     }
 
     private void assertError(String port, String view, String expectedKeyForError, String expectedErrorMessage) {
         P4MaterialConfig p4MaterialConfig = new P4MaterialConfig(port, view);
-        p4MaterialConfig.validate(new ValidationContext(null));
+        p4MaterialConfig.validate(new ConfigSaveValidationContext(null));
         assertThat(p4MaterialConfig.errors().on(expectedKeyForError), is(expectedErrorMessage));
     }
 }

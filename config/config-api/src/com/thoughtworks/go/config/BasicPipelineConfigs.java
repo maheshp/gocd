@@ -1,5 +1,5 @@
-/*************************GO-LICENSE-START*********************************
- * Copyright 2014 ThoughtWorks, Inc.
+/*
+ * Copyright 2015 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,13 +12,12 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *************************GO-LICENSE-END***********************************/
+ */
 
 package com.thoughtworks.go.config;
 
 import com.thoughtworks.go.config.preprocessor.SkipParameterResolution;
 import com.thoughtworks.go.config.remote.ConfigOrigin;
-import com.thoughtworks.go.config.remote.FileConfigOrigin;
 import com.thoughtworks.go.config.validation.NameTypeValidator;
 import com.thoughtworks.go.domain.BaseCollection;
 import com.thoughtworks.go.domain.ConfigErrors;
@@ -34,7 +33,7 @@ import java.util.Map;
 import static com.thoughtworks.go.util.ExceptionUtils.bomb;
 
 @ConfigTag("pipelines")
-@ConfigCollection(value = PipelineConfig.class, asFieldName = "pipelines")
+@ConfigCollection(PipelineConfig.class)
 public class BasicPipelineConfigs extends BaseCollection<PipelineConfig> implements PipelineConfigs, Serializable {
 
 
@@ -323,7 +322,7 @@ public class BasicPipelineConfigs extends BaseCollection<PipelineConfig> impleme
     }
 
     private void verifyPipelineNameUniqueness() {
-        HashMap<String, PipelineConfig> hashMap = new HashMap<String, PipelineConfig>();
+        HashMap<CaseInsensitiveString, PipelineConfig> hashMap = new HashMap<>();
         for(PipelineConfig pipelineConfig : this){
             pipelineConfig.validateNameUniqueness(hashMap);
         }
@@ -376,7 +375,7 @@ public class BasicPipelineConfigs extends BaseCollection<PipelineConfig> impleme
 
     @Override
     public List<String> getOperateRoleNames() {
-        List<String> roles = new ArrayList<String>();
+        List<String> roles = new ArrayList<>();
         for (AdminRole role : getOperateRoles()) {
             roles.add(CaseInsensitiveString.str(role.getName()));
         }
@@ -385,7 +384,7 @@ public class BasicPipelineConfigs extends BaseCollection<PipelineConfig> impleme
 
     @Override
     public List<String> getOperateUserNames() {
-        List<String> users = new ArrayList<String>();
+        List<String> users = new ArrayList<>();
         for (AdminUser user : getOperateUsers()) {
             users.add(CaseInsensitiveString.str(user.getName()));
         }
@@ -436,13 +435,29 @@ public class BasicPipelineConfigs extends BaseCollection<PipelineConfig> impleme
 
     @Override
     public void validateGroupNameAndAddErrorsTo(ConfigErrors errors) {
-        if (StringUtils.isBlank(group) || !new NameTypeValidator().isNameValid(group)) {
+        if (StringUtils.isBlank(group) || new NameTypeValidator().isNameInvalid(group)) {
             String errorText = NameTypeValidator.errorMessage("group", group);
             errors.add(GROUP, errorText);
         }
     }
 
+    public PipelineConfigs getLocal() {
+        if(this.isLocal())
+            return this;
+        return null;
+    }
+
+    @Override
+    public boolean isLocal() {
+        return getOrigin() == null || getOrigin().isLocal();
+    }
+
     public void setOrigin(ConfigOrigin origin) {
         this.configOrigin = origin;
+    }
+
+    @Override
+    public boolean hasRemoteParts() {
+        return getOrigin() != null && !getOrigin().isLocal();
     }
 }

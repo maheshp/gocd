@@ -186,13 +186,13 @@ public class GoPluginDescriptor implements PluginDescriptor {
         return bundledPlugin;
     }
 
-    public boolean isCurrentOSValidForThisPlugin(OperatingSystem currentOS) {
+    public boolean isCurrentOSValidForThisPlugin(String currentOS) {
         if (about == null || about.targetOperatingSystems.isEmpty()) {
             return true;
         }
 
         for (String targetOperatingSystem : about.targetOperatingSystems) {
-            if (targetOperatingSystem.equalsIgnoreCase(currentOS.osName())) {
+            if (targetOperatingSystem.equalsIgnoreCase(currentOS)) {
                 return true;
             }
         }
@@ -205,7 +205,7 @@ public class GoPluginDescriptor implements PluginDescriptor {
         private String targetGoVersion;
         private String description;
         private Vendor vendor;
-        private final List<String> targetOperatingSystems = new ArrayList<String>();
+        private final List<String> targetOperatingSystems = new ArrayList<>();
 
         public About(String name, String version, String targetGoVersion, String description, Vendor vendor, List<String> targetOperatingSystems) {
             this.name = name;

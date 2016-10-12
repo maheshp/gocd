@@ -1,6 +1,5 @@
-/*************************GO-LICENSE-START*********************************
- * Copyright 2014 ThoughtWorks, Inc.
- *
+/*
+ * Copyright 2015 ThoughtWorks, Inc. *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -12,12 +11,16 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *************************GO-LICENSE-END***********************************/
+ */
 
 package com.thoughtworks.go.util;
 
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang.StringUtils;
+import org.apache.log4j.Logger;
+
 import java.io.File;
-import java.io.FileFilter;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -34,26 +37,14 @@ import java.util.Stack;
 import java.util.StringTokenizer;
 import java.util.UUID;
 
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang.StringUtils;
-import org.apache.log4j.Logger;
-
-import static com.thoughtworks.go.util.ExceptionUtils.bomb;
 import static java.lang.System.getProperty;
 
 public class FileUtil {
     private static final String CRUISE_TMP_FOLDER = "cruise" + "-" + UUID.randomUUID().toString();
     private static final Logger LOGGER = Logger.getLogger(FileUtil.class);
 
-    private static final boolean ON_NETWARE = Os.isFamily("netware");
-    private static final boolean ON_DOS = Os.isFamily("dos");
-
-    public static final FileFilter NONHIDDEN_FILE_FILTER = new FileFilter() {
-        public boolean accept(File pathname) {
-            return !isHidden(pathname);
-        }
-    };
+    private static final boolean ON_NETWARE = OperatingSystem.isFamily("netware");
+    private static final boolean ON_DOS = OperatingSystem.isFamily("dos");
 
     public static boolean isFolderEmpty(File folder) {
         if (folder == null) {
@@ -63,7 +54,7 @@ public class FileUtil {
         return files == null || files.length == 0;
     }
 
-    public static boolean isDirectoryReadable(File directory){
+    public static boolean isDirectoryReadable(File directory) {
         return directory.canRead() && directory.canExecute() && directory.listFiles() != null;
     }
 
@@ -82,13 +73,17 @@ public class FileUtil {
     }
 
     public static String readToEnd(InputStream input) throws IOException {
-        @SuppressWarnings("unchecked") List<String> list = IOUtils.readLines(input);
-        StringBuilder builder = new StringBuilder();
-        for (String line : list) {
-            builder.append(line);
-            builder.append(lineSeparator());
+        try {
+            @SuppressWarnings("unchecked") List<String> list = IOUtils.readLines(input);
+            StringBuilder builder = new StringBuilder();
+            for (String line : list) {
+                builder.append(line);
+                builder.append(lineSeparator());
+            }
+            return builder.toString().trim();
+        } finally {
+            IOUtils.closeQuietly(input);
         }
-        return builder.toString().trim();
     }
 
     public static boolean isHidden(File file) {
@@ -155,6 +150,11 @@ public class FileUtil {
         if (actualFileToUse.isAbsolute()) {
             return actualFileToUse;
         }
+
+        if(StringUtil.isBlank(baseDir.getPath())) {
+            return actualFileToUse;
+        }
+
         return new File(baseDir, actualFileToUse.getPath());
 
     }
@@ -200,7 +200,7 @@ public class FileUtil {
     }
 
     private static List<String> flatten(File folder1) {
-        ArrayList<String> list = new ArrayList<String>();
+        ArrayList<String> list = new ArrayList<>();
         flatten(list, folder1.getAbsolutePath(), folder1);
         return list;
     }
@@ -242,29 +242,14 @@ public class FileUtil {
     //CopiedFromAnt
 
     public static boolean isAbsolutePath(String filename) {
-        int len = filename.length();
-        if (len == 0) {
-            return false;
-        }
-        char sep = File.separatorChar;
-        filename = filename.replace('/', sep).replace('\\', sep);
-        char c = filename.charAt(0);
-        if (!(ON_DOS || ON_NETWARE)) {
-            return (c == sep);
-        }
-        if (c == sep) {
-            // CheckStyle:MagicNumber OFF
-            if (!(ON_DOS && len > 4 && filename.charAt(1) == sep)) {
-                return false;
+        File file = new File(filename);
+        boolean absolute = file.isAbsolute();
+        if (absolute && OperatingSystem.isFamily(OperatingSystem.WINDOWS)) {
+            if (filename.startsWith("\\\\") && !filename.matches("\\\\\\\\.*\\\\.+")) {
+                absolute = false;
             }
-            // CheckStyle:MagicNumber ON
-            int nextsep = filename.indexOf(sep, 2);
-            return nextsep > 2 && nextsep + 1 < len;
         }
-        int colon = filename.indexOf(':');
-        return (Character.isLetter(c) && colon == 1
-                && filename.length() > 2 && filename.charAt(2) == sep)
-                || (ON_NETWARE && colon > 0);
+        return absolute;
     }
 
     public static String[] dissect(String path) {
@@ -286,7 +271,7 @@ public class FileUtil {
             //remove the initial separator; the root has it.
             next = (ca[next] == sep) ? next + 1 : next;
 
-            StringBuffer sbPath = new StringBuffer();
+            StringBuilder sbPath = new StringBuilder();
             // Eliminate consecutive slashes after the drive spec:
             for (int i = next; i < ca.length; i++) {
                 if (ca[i] != sep || ca[i - 1] != sep) {
@@ -328,7 +313,7 @@ public class FileUtil {
                 s.push(thisToken);
             }
         }
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         for (int i = 0; i < s.size(); i++) {
             if (i > 1) {
                 // not before the filesystem root and not after it, since root

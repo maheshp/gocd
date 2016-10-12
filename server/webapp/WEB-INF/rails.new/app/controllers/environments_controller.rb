@@ -1,5 +1,5 @@
 ##########################GO-LICENSE-START################################
-# Copyright 2014 ThoughtWorks, Inc.
+# Copyright 2016 ThoughtWorks, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -52,7 +52,10 @@ class EnvironmentsController < ApplicationController
       render_error_response l.string("ENVIRONMENT_NAME_REQUIRED"), 400, true
       return
     end
-    result = environment_config_service.updateEnvironment(params[:name], @environment, current_user, params[:cruise_config_md5])
+
+    old_environment = environment_config_service.getEnvironmentConfig(params[:name])
+    result = HttpLocalizedOperationResult.new
+    environment_config_service.updateEnvironment(old_environment, @environment, current_user, params[:cruise_config_md5], result)
 
     message = result.message(Spring.bean('localizer'))
     if result.isSuccessful()
@@ -63,16 +66,19 @@ class EnvironmentsController < ApplicationController
   end
 
   def show
-    @agent_details = agent_service.filter(@environment.getAgents().map(&:uuid))
+    @agent_details = agent_service.filter(@environment.getLocalAgents().map(&:uuid))
   end
 
   def edit_pipelines
+    render layout:false
   end
 
   def edit_agents
+    render layout:false
   end
 
   def edit_variables
+    render layout:false
   end
 
   private
@@ -86,7 +92,7 @@ class EnvironmentsController < ApplicationController
     env_for_edit = environment_config_service.forEdit(params[:name], result)
     if (result.isSuccessful())
       @environment = env_for_edit.getConfigElement()
-      @cruise_config_md5 = env_for_edit.getMd5()
+      @cruise_config_md5 = entity_hashing_service.md5ForEntity(@environment)
     end
     render_if_error(result.message(Spring.bean('localizer')), result.httpCode())
     result.isSuccessful()
@@ -104,10 +110,12 @@ class EnvironmentsController < ApplicationController
   end
 
   def load_pipelines_and_agents
-    pipelines = environment_config_service.getAllPipelinesForUser(current_user)
+    pipelines = environment_config_service.getAllLocalPipelinesForUser(current_user)
+    # available_pipelines should only contain local pipelines, not referenced already from a remote config repository
 
     @unavailable_pipelines = []
     @available_pipelines = []
+    @remote_pipelines = environment_config_service.getAllRemotePipelinesForUserInEnvironment(current_user,@environment)
 
     pipelines.each do |pipeline|
       collection = pipeline.isAssociatedWithEnvironmentOtherThan(@environment && @environment.name().to_s) ? @unavailable_pipelines : @available_pipelines

@@ -6,9 +6,11 @@
     <%= stylesheet_link_tag "vm/jef_override_for_old_ui" %>
 </head>
 <body id="<%= page_name %>" class="<%= page_name %>">
-<div id="body_bg">
+<div class="page-wrap">
+  <div id="body_bg">
+
     <div id="header">
-        <%= render :partial => "shared/header", :locals => {:scope => {:admin_tab_url => '/admin/users'}} %>
+        <%= render :partial => "shared/header" %>
     </div>
 
     <div id='body_content'>
@@ -45,10 +47,10 @@
             </div>
         </div>
     </div>
-
-    <div id='footer'>
-        <%= render :partial => "shared/footer" %>
-    </div>
+  </div>
 </div>
+    <div id='footer-new-foundation'>
+      <%= render :partial => 'navigation_elements/footer' %>
+    </div>
 </body>
 </html>

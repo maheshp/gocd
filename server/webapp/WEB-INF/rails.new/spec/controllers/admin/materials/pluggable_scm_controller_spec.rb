@@ -20,10 +20,6 @@ describe Admin::Materials::PluggableScmController do
   include ConfigSaveStubbing
   include MockRegistryModule
 
-  before do
-    controller.stub(:populate_health_messages)
-  end
-
   describe "routes should resolve and generate" do
     it "show_existing" do
       {:get => '/admin/pipelines/pipeline.name/materials/pluggable_scm/show_existing'}.should route_to(:controller => 'admin/materials/pluggable_scm', :action => 'show_existing', :pipeline_name => 'pipeline.name')
@@ -272,7 +268,7 @@ describe Admin::Materials::PluggableScmController do
 
   def assert_material_is_initialized
     scm = com.thoughtworks.go.domain.scm.SCM.new
-    scm.setPluginConfiguration(PluginConfiguration.new('plugin-id', '1'))
+    scm.setPluginConfiguration(PluginConfiguration.new('plugin-id', nil))
     pluggable_scm = PluggableSCMMaterialConfig.new
     pluggable_scm.setSCMConfig(scm)
     assigns[:material].should == pluggable_scm

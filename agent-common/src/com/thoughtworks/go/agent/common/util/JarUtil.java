@@ -69,7 +69,7 @@ public class JarUtil {
         try {
             File agentJar = new File(jarFileName);
             String absolutePath = agentJar.getAbsolutePath();
-            List<URL> urls = new ArrayList<URL>();
+            List<URL> urls = new ArrayList<>();
             urls.add(agentJar.toURI().toURL());
 
             if (manifestLibDirKey != null) {
@@ -98,10 +98,11 @@ public class JarUtil {
                 depsDir.mkdirs();
                 String entryBaseName = entryName.replaceAll(".*/", "");
                 File extractedJar = new File(depsDir, entryBaseName);
+                String escapedJarURL = new File(absolutePath).toURI().toURL().toExternalForm();
                 InputStream jarStream = null;
                 FileOutputStream fileOutputStream = null;
                 try {
-                    URL jarUrl = new URL("jar:file:" + absolutePath + "!/" + entryName);
+                    URL jarUrl = new URL("jar:" + escapedJarURL + "!/" + entryName);
                     URLConnection conn = jarUrl.openConnection();
                     conn.setUseCaches(false);
                     jarStream = conn.getInputStream();

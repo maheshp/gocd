@@ -1,5 +1,5 @@
 ##########################GO-LICENSE-START################################
-# Copyright 2014 ThoughtWorks, Inc.
+# Copyright 2016 ThoughtWorks, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -84,7 +84,7 @@ describe ApplicationHelper do
 
   it "should generate hidden field for config_md5" do
     allow(self).to receive(:cruise_config_md5).and_return("foo_bar_baz")
-    config_md5_field.should == '<input type="hidden" name="cruise_config_md5" value="foo_bar_baz"/>'
+    config_md5_field.should == '<input id="cruise_config_md5" name="cruise_config_md5" type="hidden" value="foo_bar_baz" />'
   end
 
   describe :tab_for do
@@ -266,20 +266,22 @@ describe ApplicationHelper do
                                            :url => api_pipeline_action_path(:pipeline_name => "SOME_NAME", :action => 'releaseLock'),
                                            :update => {:failure => "message_pane", :success => 'function(){}'},
                                            :html => {},
+                                           :headers => {Confirm: 'true'},
                                            :before => "spinny('unlock');"
 
-      exp = %q|<a href="#"  onclick="AjaxRefreshers.disableAjax();spinny('unlock');; new Ajax.Updater({success:'function(){}',failure:'message_pane'}, '/api/pipelines/SOME_NAME/releaseLock', {asynchronous:true, evalScripts:true, method:'post', on401:function(request){redirectToLoginPage('/auth/login');}, onComplete:function(request){AjaxRefreshers.enableAjax();}}); return false;">&nbsp;</a>|
+      exp = %q|<a href="#"  onclick="AjaxRefreshers.disableAjax();spinny('unlock');; new Ajax.Updater({success:'function(){}',failure:'message_pane'}, '/api/pipelines/SOME_NAME/releaseLock', {asynchronous:true, evalScripts:true, method:'post', on401:function(request){redirectToLoginPage('/auth/login');}, onComplete:function(request){AjaxRefreshers.enableAjax();}, requestHeaders:{'Confirm':'true'}}); return false;">&nbsp;</a>|
       expect(actual).to eq(exp)
     end
 
     it "should create a blocking link to a remote location with extra HTML provided" do
       actual = blocking_link_to_remote_new :name => "&nbsp;",
                                            :url => api_pipeline_action_path(:pipeline_name => "SOME_NAME", :action => 'releaseLock'),
+                                           :headers => {Confirm: 'true'},
                                            :update => {:failure => "message_pane", :success => 'function(){}'},
                                            :html => {:class => "ABC", :title => "TITLE", :id => "SOME-ID" },
                                            :before => "spinny('unlock');"
 
-      exp = %q|<a href="#"  class="ABC" id="SOME-ID" title="TITLE" onclick="AjaxRefreshers.disableAjax();spinny('unlock');; new Ajax.Updater({success:'function(){}',failure:'message_pane'}, '/api/pipelines/SOME_NAME/releaseLock', {asynchronous:true, evalScripts:true, method:'post', on401:function(request){redirectToLoginPage('/auth/login');}, onComplete:function(request){AjaxRefreshers.enableAjax();}}); return false;">&nbsp;</a>|
+      exp = %q|<a href="#"  class="ABC" id="SOME-ID" title="TITLE" onclick="AjaxRefreshers.disableAjax();spinny('unlock');; new Ajax.Updater({success:'function(){}',failure:'message_pane'}, '/api/pipelines/SOME_NAME/releaseLock', {asynchronous:true, evalScripts:true, method:'post', on401:function(request){redirectToLoginPage('/auth/login');}, onComplete:function(request){AjaxRefreshers.enableAjax();}, requestHeaders:{'Confirm':'true'}}); return false;">&nbsp;</a>|
       expect(actual).to eq(exp)
     end
   end
@@ -600,7 +602,26 @@ describe ApplicationHelper do
      )
      expect(actual).to eq(expected)
    end
-
   end
 
+  describe :go_update do
+    it 'should fetch the new go release' do
+      version_info_service.should_receive(:getGoUpdate).and_return("1.2.3-1")
+
+      expect(go_update).to eq("1.2.3-1")
+    end
+  end
+
+  describe :check_go_updates? do
+    it 'should return true if go version update check is enabled' do
+      version_info_service.should_receive(:isGOUpdateCheckEnabled).and_return(true)
+
+      expect(check_go_updates?).to be_true
+    end
+  end
+
+  it 'should encode cruise-config-md5 before allowing it to be displayed.' do
+    allow(self).to receive(:cruise_config_md5).and_return("<foo>")
+    config_md5_field.should == '<input id="cruise_config_md5" name="cruise_config_md5" type="hidden" value="&lt;foo&gt;" />'
+  end
 end

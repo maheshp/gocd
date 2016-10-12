@@ -1,59 +1,50 @@
-/*************************GO-LICENSE-START*********************************
- * Copyright 2014 ThoughtWorks, Inc.
+/*
+ * Copyright 2016 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *************************GO-LICENSE-END***********************************/
+ */
 
 package com.thoughtworks.go.server.service;
 
 import com.google.gson.GsonBuilder;
 import com.thoughtworks.go.domain.NullPlugin;
 import com.thoughtworks.go.domain.Plugin;
-import com.thoughtworks.go.plugin.access.authentication.AuthenticationExtension;
+import com.thoughtworks.go.plugin.access.common.settings.GoPluginExtension;
 import com.thoughtworks.go.plugin.access.common.settings.PluginSettingsConfiguration;
 import com.thoughtworks.go.plugin.access.common.settings.PluginSettingsMetadataStore;
-import com.thoughtworks.go.plugin.access.notification.NotificationExtension;
-import com.thoughtworks.go.plugin.access.packagematerial.PackageAsRepositoryExtension;
-import com.thoughtworks.go.plugin.access.pluggabletask.TaskExtension;
-import com.thoughtworks.go.plugin.access.scm.SCMExtension;
 import com.thoughtworks.go.plugin.api.response.validation.ValidationError;
 import com.thoughtworks.go.plugin.api.response.validation.ValidationResult;
-import com.thoughtworks.go.server.dao.PluginSqlMapDao;
+import com.thoughtworks.go.server.dao.PluginDao;
 import com.thoughtworks.go.server.domain.PluginSettings;
+import com.thoughtworks.go.server.service.plugins.builder.PluginInfoBuilder;
+import com.thoughtworks.go.server.ui.plugins.PluginInfo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Map;
 
 @Service
 public class PluginService {
-    private PackageAsRepositoryExtension packageAsRepositoryExtension;
-    private SCMExtension scmExtension;
-    private TaskExtension taskExtension;
-    private NotificationExtension notificationExtension;
-    private AuthenticationExtension authenticationExtension;
-    private PluginSqlMapDao pluginDao;
+    private final List<GoPluginExtension> extensions;
+    private final PluginDao pluginDao;
+    private PluginInfoBuilder pluginInfoBuilder;
 
     @Autowired
-    public PluginService(PackageAsRepositoryExtension packageAsRepositoryExtension, SCMExtension scmExtension,
-                         TaskExtension taskExtension, NotificationExtension notificationExtension,
-                         AuthenticationExtension authenticationExtension, PluginSqlMapDao pluginDao) {
-        this.packageAsRepositoryExtension = packageAsRepositoryExtension;
-        this.scmExtension = scmExtension;
-        this.taskExtension = taskExtension;
-        this.notificationExtension = notificationExtension;
-        this.authenticationExtension = authenticationExtension;
+    public PluginService(List<GoPluginExtension> extensions, PluginDao pluginDao, PluginInfoBuilder pluginInfoBuilder) {
+        this.extensions = extensions;
         this.pluginDao = pluginDao;
+        this.pluginInfoBuilder = pluginInfoBuilder;
     }
 
     public PluginSettings getPluginSettingsFor(String pluginId) {
@@ -77,17 +68,18 @@ public class PluginService {
         String pluginId = pluginSettings.getPluginId();
         PluginSettingsConfiguration configuration = pluginSettings.toPluginSettingsConfiguration();
         ValidationResult result = null;
-        if (packageAsRepositoryExtension.isPackageRepositoryPlugin(pluginId)) {
-            result = packageAsRepositoryExtension.validatePluginSettings(pluginId, configuration);
-        } else if (scmExtension.isSCMPlugin(pluginId)) {
-            result = scmExtension.validatePluginSettings(pluginId, configuration);
-        } else if (taskExtension.isTaskPlugin(pluginId)) {
-            result = taskExtension.validatePluginSettings(pluginId, configuration);
-        } else if (notificationExtension.isNotificationPlugin(pluginId)) {
-            result = notificationExtension.validatePluginSettings(pluginId, configuration);
-        } else if (authenticationExtension.isAuthenticationPlugin(pluginId)) {
-            result = authenticationExtension.validatePluginSettings(pluginId, configuration);
+
+        boolean anyExtensionSupportsPluginId = false;
+        for (GoPluginExtension extension : extensions) {
+            if (extension.canHandlePlugin(pluginId)) {
+                result = extension.validatePluginSettings(pluginId, configuration);
+                anyExtensionSupportsPluginId = true;
+            }
         }
+        if(!anyExtensionSupportsPluginId)
+            throw new IllegalArgumentException(String.format(
+                    "Plugin '%s' is not supported by any extension point",pluginId));
+
         if (!result.isSuccessful()) {
             for (ValidationError error : result.getErrors()) {
                 pluginSettings.populateErrorMessageFor(error.getKey(), error.getMessage());
@@ -103,6 +95,14 @@ public class PluginService {
         Map<String, String> settingsMap = pluginSettings.getSettingsAsKeyValuePair();
         plugin.setConfiguration(toJSON(settingsMap));
         pluginDao.saveOrUpdate(plugin);
+    }
+
+    public List<PluginInfo> pluginInfos(String type) {
+        return pluginInfoBuilder.allPluginInfos(type);
+    }
+
+    public PluginInfo pluginInfo(String pluginId) {
+        return pluginInfoBuilder.pluginInfoFor(pluginId);
     }
 
     private String toJSON(Map<String, String> settingsMap) {

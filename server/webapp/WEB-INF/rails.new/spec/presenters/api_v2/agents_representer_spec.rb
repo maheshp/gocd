@@ -1,5 +1,5 @@
 ##########################################################################
-# Copyright 2015 ThoughtWorks, Inc.
+# Copyright 2016 ThoughtWorks, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ describe ApiV2::AgentsRepresenter do
 
     expect(actual_json).to have_links(:self, :doc)
     expect(actual_json).to have_link(:self).with_url('http://test.host/api/agents')
-    expect(actual_json).to have_link(:doc).with_url('http://api.go.cd/#agents')
+    expect(actual_json).to have_link(:doc).with_url('https://api.go.cd/#agents')
     actual_json.delete(:_links)
     actual_json.fetch(:_embedded).should == { :agents => [ApiV2::AgentRepresenter.new(idle_agent).to_hash(url_builder: UrlBuilder.new)] }
   end

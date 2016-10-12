@@ -37,10 +37,25 @@ module ApiSpecHelper
     EOS
   end
 
+  def login_as_pipeline_group_Non_Admin_user
+    enable_security
+    controller.stub(:current_user).and_return(@user = Username.new(CaseInsensitiveString.new(SecureRandom.hex)))
+    @security_service.stub(:isUserAdminOfGroup).and_return(false)
+    @security_service.stub(:isUserAdmin).with(@user).and_return(false)
+  end
+
+  def login_as_pipeline_group_admin_user(group_name)
+    enable_security
+    controller.stub(:current_user).and_return(@user = Username.new(CaseInsensitiveString.new(SecureRandom.hex)))
+    @security_service.stub(:isUserAdminOfGroup).with(@user.getUsername, group_name).and_return(true)
+    @security_service.stub(:isUserAdmin).with(@user).and_return(true)
+  end
+
   def login_as_user
     enable_security
     controller.stub(:current_user).and_return(@user = Username.new(CaseInsensitiveString.new(SecureRandom.hex)))
     @security_service.stub(:isUserAdmin).with(@user).and_return(false)
+    @security_service.stub(:isUserGroupAdmin).with(@user).and_return(false)
   end
 
   def allow_current_user_to_access_pipeline(pipeline_name)
@@ -68,9 +83,17 @@ module ApiSpecHelper
     @security_service.stub(:isUserAdmin).with(@user).and_return(true)
   end
 
+  def login_as_group_admin
+    enable_security
+    controller.stub(:current_user).and_return(@user = Username.new(CaseInsensitiveString.new(SecureRandom.hex)))
+    @security_service.stub(:isUserAdmin).with(@user).and_return(false)
+    @security_service.stub(:isUserGroupAdmin).with(@user).and_return(true)
+  end
+
   def login_as_anonymous
     controller.stub(:current_user).and_return(@user = Username::ANONYMOUS)
     @security_service.stub(:isUserAdmin).with(@user).and_return(false)
+    @security_service.stub(:isUserGroupAdmin).with(@user).and_return(false)
   end
 
   def actual_response
@@ -80,6 +103,11 @@ module ApiSpecHelper
   def expected_response(thing, representer)
     JSON.parse(representer.new(thing).to_hash(url_builder: controller).to_json).deep_symbolize_keys
   end
+
+  def expected_response_with_args(thing, representer, *args)
+    JSON.parse(representer.new(thing, *args).to_hash(url_builder: controller).to_json).deep_symbolize_keys
+  end
+
 
   def expected_response_with_options(thing, opts=[], representer)
     JSON.parse(representer.new(thing, opts).to_hash(url_builder: controller).to_json).deep_symbolize_keys
@@ -279,9 +307,9 @@ RSpec::Matchers.define :have_link do |link_name|
               else
                 @match = true
               end
-              @failure_message_for_should_not = "expected json to not have a #{link_name.inspect} link with href #{@link_url.inspect}\n got #{link['href'].inspect} instead"
+              @failure_message_for_should_not = "expected json to not have a #{link_name.inspect} link with href #{@link_url.inspect}\n got #{link[:href].inspect} instead"
             else
-              @failure_message_for_should = "expected json to have a #{link_name.inspect} link with href #{@link_url.inspect}\n got #{link['href'].inspect} instead"
+              @failure_message_for_should = "expected json to have a #{link_name.inspect} link with href #{@link_url.inspect}\n got #{link[:href].inspect} instead"
             end
           end
         else

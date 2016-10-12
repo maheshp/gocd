@@ -1,5 +1,5 @@
 /*************************GO-LICENSE-START*********************************
- * Copyright 2014 ThoughtWorks, Inc.
+ * Copyright 2016 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,11 +25,12 @@ import java.security.cert.X509Certificate;
 import java.util.Date;
 
 public class Registration implements Serializable {
+
     private final PrivateKey privateKey;
     private final Certificate[] chain;
 
     public static Registration createNullPrivateKeyEntry() {
-        return new Registration(emptyPrivateKey());
+        return new Registration(null);
     }
 
     public Registration(PrivateKey privateKey, Certificate... chain) {
@@ -57,23 +58,12 @@ public class Registration implements Serializable {
         return getFirstCertificate().getNotBefore();
     }
 
-    private static PrivateKey emptyPrivateKey() {
-        return new PrivateKey() {
-            public String getAlgorithm() {
-                return null;
-            }
-
-            public String getFormat() {
-                return null;
-            }
-
-            public byte[] getEncoded() {
-                return new byte[0];
-            }
-        };
-    }
-
     public KeyStore.PrivateKeyEntry asKeyStoreEntry() {
         return new KeyStore.PrivateKeyEntry(privateKey, chain);
     }
+
+    public boolean isValid() {
+        return privateKey != null && chain != null && chain.length > 0;
+    }
+
 }

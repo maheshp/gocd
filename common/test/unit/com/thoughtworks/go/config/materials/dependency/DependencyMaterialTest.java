@@ -1,35 +1,34 @@
-/*************************GO-LICENSE-START*********************************
- * Copyright 2014 ThoughtWorks, Inc.
+/*
+ * Copyright 2015 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *************************GO-LICENSE-END***********************************/
+ */
 
 package com.thoughtworks.go.config.materials.dependency;
 
-import com.thoughtworks.go.config.CaseInsensitiveString;
-import com.thoughtworks.go.config.FetchTask;
-import com.thoughtworks.go.config.PipelineConfig;
+import com.thoughtworks.go.config.*;
+import com.thoughtworks.go.config.materials.MaterialConfigs;
 import com.thoughtworks.go.domain.materials.Material;
 import com.thoughtworks.go.domain.materials.Modification;
 import com.thoughtworks.go.domain.materials.Modifications;
 import com.thoughtworks.go.domain.materials.dependency.DependencyMaterialRevision;
-import com.thoughtworks.go.util.json.JsonMap;
-import com.thoughtworks.go.util.json.JsonString;
+import com.thoughtworks.go.helper.GoConfigMother;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.*;
 
+import static com.thoughtworks.go.domain.materials.dependency.DependencyMaterialRevision.create;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.collection.IsMapContaining.hasEntry;
 import static org.hamcrest.core.Is.is;
@@ -52,13 +51,13 @@ public class DependencyMaterialTest {
 
     @Test
     public void shouldReturnJson() {
-        JsonMap json = new JsonMap();
-        dependencyMaterial.toJson(json, DependencyMaterialRevision.create("pipeline", 10, "1.0.123", "stage", 1));
+        Map<String, String> json = new LinkedHashMap<>();
+        dependencyMaterial.toJson(json, create("pipeline", 10, "1.0.123", "stage", 1));
 
-        assertThat(json.getJsonString("location"), is(new JsonString("pipeline/stage")));
-        assertThat(json.getJsonString("scmType"), is(new JsonString("Dependency")));
-        assertThat(json.getJsonString("folder"), is(new JsonString("")));
-        assertThat(json.getJsonString("action"), is(new JsonString("Completed")));
+        assertThat(json.get("location"), is("pipeline/stage"));
+        assertThat(json.get("scmType"), is("Dependency"));
+        assertThat(json.get("folder"), is(""));
+        assertThat(json.get("action"), is("Completed"));
     }
 
     @Test
@@ -153,7 +152,7 @@ public class DependencyMaterialTest {
     @Test
     public void shouldUseACombinationOfPipelineAndStageNameAsURI() {
         Material material = new DependencyMaterial(new CaseInsensitiveString("pipeline-foo"), new CaseInsensitiveString("stage-bar"));
-        assertThat(material.getUriForDisplay(), is("pipeline-foo / stage-bar")); 
+        assertThat(material.getUriForDisplay(), is("pipeline-foo / stage-bar"));
     }
 
     @Test
@@ -201,6 +200,27 @@ public class DependencyMaterialTest {
         Map<String, Object> attributesWithoutSecureFields = material.getAttributes(false);
         assertAttributes(attributesWithoutSecureFields);
     }
+
+
+    @Test
+    public void shouldHandleNullOriginDuringValidationWhenUpstreamPipelineDoesNotExist() {
+        DependencyMaterialConfig dependencyMaterialConfig = new DependencyMaterialConfig(new CaseInsensitiveString("upstream_stage"), new CaseInsensitiveString("upstream_pipeline"), new CaseInsensitiveString("stage"));
+        PipelineConfig pipeline = new PipelineConfig(new CaseInsensitiveString("p"), new MaterialConfigs());
+        pipeline.setOrigin(null);
+        dependencyMaterialConfig.validateTree(PipelineConfigSaveValidationContext.forChain(true, "group", new BasicCruiseConfig(), pipeline));
+        assertThat(dependencyMaterialConfig.errors().on(DependencyMaterialConfig.PIPELINE_STAGE_NAME), is("Pipeline with name 'upstream_pipeline' does not exist, it is defined as a dependency for pipeline 'p' (cruise-config.xml)"));
+    }
+
+    @Test
+    public void shouldHandleNullOriginDuringValidationWhenUpstreamStageDoesNotExist() {
+        CruiseConfig cruiseConfig = GoConfigMother.pipelineHavingJob("upstream_pipeline", "upstream_stage", "j1", null, null);
+        DependencyMaterialConfig dependencyMaterialConfig = new DependencyMaterialConfig(new CaseInsensitiveString("upstream_pipeline"), new CaseInsensitiveString("does_not_exist"));
+        PipelineConfig pipeline = new PipelineConfig(new CaseInsensitiveString("downstream"), new MaterialConfigs());
+        pipeline.setOrigin(null);
+        dependencyMaterialConfig.validateTree(PipelineConfigSaveValidationContext.forChain(true, "group", cruiseConfig, pipeline));
+        assertThat(dependencyMaterialConfig.errors().on(DependencyMaterialConfig.PIPELINE_STAGE_NAME), is("Stage with name 'does_not_exist' does not exist on pipeline 'upstream_pipeline', it is being referred to from pipeline 'downstream' (cruise-config.xml)"));
+    }
+    
 
     private void assertAttributes(Map<String, Object> attributes) {
         assertThat((String) attributes.get("type"), is("pipeline"));

@@ -1,5 +1,5 @@
-/*************************GO-LICENSE-START*********************************
- * Copyright 2015 ThoughtWorks, Inc.
+/*
+ * Copyright 2016 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,14 +12,19 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *************************GO-LICENSE-END***********************************/
+ *
+ */
 
 package com.thoughtworks.go.server.initializers;
 
-import com.thoughtworks.go.config.MergedGoConfig;
+import com.thoughtworks.go.config.ConfigCipherUpdater;
+import com.thoughtworks.go.config.CachedGoConfig;
 import com.thoughtworks.go.config.GoFileConfigDataSource;
 import com.thoughtworks.go.config.InvalidConfigMessageRemover;
+import com.thoughtworks.go.config.*;
+import com.thoughtworks.go.config.preprocessor.ConfigRepoPartialPreprocessor;
 import com.thoughtworks.go.config.registry.ConfigElementImplementationRegistrar;
+import com.thoughtworks.go.config.registry.ConfigElementImplementationRegistry;
 import com.thoughtworks.go.domain.cctray.CcTrayActivityListener;
 import com.thoughtworks.go.plugin.infra.commons.PluginsZip;
 import com.thoughtworks.go.plugin.infra.monitor.DefaultPluginJarLocationMonitor;
@@ -59,7 +64,7 @@ public class ApplicationInitializer implements ApplicationListener<ContextRefres
     @Autowired private GoFileConfigDataSource goFileConfigDataSource;
     @Autowired private EnvironmentConfigService environmentConfigService;
     @Autowired private DefaultPluginJarLocationMonitor defaultPluginJarLocationMonitor;
-    @Autowired private MergedGoConfig mergedGoConfig;
+    @Autowired private CachedGoConfig cachedGoConfig;
     @Autowired private ConsoleActivityMonitor consoleActivityMonitor;
     @Autowired private BuildAssignmentService buildAssignmentService;
     @Autowired private PipelineScheduler pipelineScheduler;
@@ -75,9 +80,12 @@ public class ApplicationInitializer implements ApplicationListener<ContextRefres
     @Autowired private ArtifactsService artifactsService;
     @Autowired private ConsoleService consoleService;
     @Autowired private ConfigElementImplementationRegistrar configElementImplementationRegistrar;
+    @Autowired private ConfigCipherUpdater configCipherUpdater;
     @Autowired private RailsAssetsService railsAssetsService;
     @Autowired private FeatureToggleService featureToggleService;
     @Autowired private CcTrayActivityListener ccTrayActivityListener;
+    @Autowired private ServerVersionInfoManager serverVersionInfoManager;
+    @Autowired private EntityHashingService entityHashingService;
 
     @Override
     public void onApplicationEvent(ContextRefreshedEvent contextRefreshedEvent) {
@@ -89,13 +97,15 @@ public class ApplicationInitializer implements ApplicationListener<ContextRefres
             defaultPluginJarLocationMonitor.initialize();
             pluginsInitializer.initialize();
             pluginsZip.create();
-
             //config
+
+            configCipherUpdater.migrate(); // Should be done before configs get loaded
             configElementImplementationRegistrar.initialize();
             configRepository.initialize();
             goFileConfigDataSource.upgradeIfNecessary();
-            mergedGoConfig.loadConfigIfNull();
+            cachedGoConfig.loadConfigIfNull();
             goConfigService.initialize();
+            entityHashingService.initialize();
 
             //artifacts
             artifactsDirHolder.initialize();
@@ -127,9 +137,11 @@ public class ApplicationInitializer implements ApplicationListener<ContextRefres
             backupService.initialize();
             railsAssetsService.initialize();
             ccTrayActivityListener.initialize();
+
             ServletHelper.init();
             // initialize static accessors
             Toggles.initializeWith(featureToggleService);
+            serverVersionInfoManager.initialize();
         } catch (Throwable throwable) {
             throw new RuntimeException(throwable);
         }

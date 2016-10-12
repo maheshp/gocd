@@ -1,23 +1,24 @@
-/*************************GO-LICENSE-START*********************************
- * Copyright 2014 ThoughtWorks, Inc.
+/*
+ * Copyright 2016 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *************************GO-LICENSE-END***********************************/
+ */
 
 package com.thoughtworks.go.server.dao;
 
 import com.thoughtworks.go.config.ArtifactPlans;
 import com.thoughtworks.go.config.ArtifactPropertiesGenerators;
+import com.thoughtworks.go.config.EnvironmentVariablesConfig;
 import com.thoughtworks.go.config.Resources;
 import com.thoughtworks.go.domain.*;
 import com.thoughtworks.go.helper.JobInstanceMother;
@@ -38,8 +39,6 @@ import static com.thoughtworks.go.util.ArrayUtil.asList;
 import static com.thoughtworks.go.util.IBatisUtil.arguments;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertThat;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.*;
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(locations = {
@@ -65,7 +64,7 @@ public class JobInstanceSqlMapDaoCachingTest {
     @Test
     public void buildByIdWithTransitions_shouldCacheWhenQueriedFor() {
         jobInstanceDao.setSqlMapClientTemplate(mockTemplate);
-        
+
         JobInstance job = JobInstanceMother.assigned("job");
         job.setId(1L);
         when(mockTemplate.queryForObject("buildByIdWithTransitions", 1L)).thenReturn(job);
@@ -90,7 +89,7 @@ public class JobInstanceSqlMapDaoCachingTest {
         assertThat(actual, is(job));
         assertThat(actual == job, is(false));
 
-        jobInstanceDao.updateStateAndResult(job); //Must clear cahced job instance 
+        jobInstanceDao.updateStateAndResult(job); //Must clear cahced job instance
 
         jobInstanceDao.buildByIdWithTransitions(1L);
         verify(mockTemplate, times(2)).queryForObject("buildByIdWithTransitions", 1L);
@@ -198,7 +197,7 @@ public class JobInstanceSqlMapDaoCachingTest {
         jobInstanceDao.activeJobs();//cache it first
 
         jobInstanceDao.updateStateAndResult(instance(1L));//should remove from cache
-        
+
         List<ActiveJob> activeJobs = jobInstanceDao.activeJobs();
 
         assertThat(expectedJobs, is(activeJobs));
@@ -286,6 +285,6 @@ public class JobInstanceSqlMapDaoCachingTest {
     }
 
     private DefaultJobPlan jobPlan(long id) {
-        return new DefaultJobPlan(new Resources(), new ArtifactPlans(), new ArtifactPropertiesGenerators(), id, null);
+        return new DefaultJobPlan(new Resources(), new ArtifactPlans(), new ArtifactPropertiesGenerators(), id, null, null, new EnvironmentVariablesConfig(), new EnvironmentVariablesConfig(), null);
     }
 }

@@ -30,7 +30,6 @@ import com.thoughtworks.go.remote.work.ConsoleOutputTransmitter;
 import com.thoughtworks.go.server.service.AgentRuntimeInfo;
 import com.thoughtworks.go.util.GoConstants;
 import com.thoughtworks.go.util.SystemUtil;
-import com.thoughtworks.go.util.TimeProvider;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -44,7 +43,6 @@ public class DefaultGoPublisher implements GoPublisher {
     private final AgentRuntimeInfo agentRuntimeInfo;
     private ConsoleOutputTransmitter consoleOutputTransmitter;
     private static final Log LOG = LogFactory.getLog(DefaultGoPublisher.class);
-    private TimeProvider timeProvider = new TimeProvider();
     private String currentWorkingDirectory = SystemUtil.currentWorkingDirectory();
 
     public DefaultGoPublisher(GoArtifactsManipulator manipulator, JobIdentifier jobIdentifier,

@@ -1,32 +1,37 @@
-/*************************GO-LICENSE-START*********************************
- * Copyright 2014 ThoughtWorks, Inc.
+/*
+ * Copyright 2016 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *************************GO-LICENSE-END***********************************/
+ */
 
 package com.thoughtworks.go.config;
 
 import com.thoughtworks.go.config.exceptions.ConfigFileHasChangedException;
 import com.thoughtworks.go.config.exceptions.ConfigMergeException;
+import com.thoughtworks.go.config.exceptions.GoConfigInvalidException;
+import com.thoughtworks.go.config.materials.git.GitMaterialConfig;
 import com.thoughtworks.go.config.materials.svn.SvnMaterialConfig;
 import com.thoughtworks.go.config.materials.tfs.TfsMaterialConfig;
+import com.thoughtworks.go.config.preprocessor.ConfigRepoPartialPreprocessor;
 import com.thoughtworks.go.config.registry.ConfigElementImplementationRegistry;
+import com.thoughtworks.go.config.registry.NoPluginsInstalled;
+import com.thoughtworks.go.config.remote.ConfigRepoConfig;
+import com.thoughtworks.go.config.remote.PartialConfig;
+import com.thoughtworks.go.config.remote.RepoConfigOrigin;
+import com.thoughtworks.go.domain.ConfigErrors;
 import com.thoughtworks.go.domain.GoConfigRevision;
-import com.thoughtworks.go.helper.ConfigFileFixture;
-import com.thoughtworks.go.helper.NoOpMetricsProbeService;
-import com.thoughtworks.go.helper.PipelineConfigMother;
-import com.thoughtworks.go.helper.StageConfigMother;
-import com.thoughtworks.go.metrics.service.MetricsProbeService;
+import com.thoughtworks.go.helper.*;
+import com.thoughtworks.go.plugin.access.configrepo.ConfigRepoExtension;
 import com.thoughtworks.go.server.util.ServerVersion;
 import com.thoughtworks.go.serverhealth.ServerHealthService;
 import com.thoughtworks.go.service.ConfigRepository;
@@ -38,7 +43,10 @@ import org.hamcrest.core.Is;
 import org.joda.time.DateTime;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
+import org.mockito.Matchers;
 import org.springframework.security.GrantedAuthority;
 import org.springframework.security.context.SecurityContext;
 import org.springframework.security.context.SecurityContextHolder;
@@ -48,20 +56,19 @@ import org.springframework.security.userdetails.User;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.Date;
-import java.util.List;
-import java.util.Vector;
+import java.util.*;
 
 import static com.thoughtworks.go.helper.ConfigFileFixture.VALID_XML_3169;
 import static com.thoughtworks.go.util.GoConfigFileHelper.loadAndMigrate;
+import static java.util.Arrays.asList;
+import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.nullValue;
 import static org.hamcrest.core.StringContains.containsString;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 public class GoFileConfigDataSourceTest {
     private GoFileConfigDataSource dataSource;
@@ -71,8 +78,9 @@ public class GoFileConfigDataSourceTest {
     private ConfigRepository configRepository;
     private TimeProvider timeProvider;
     private ConfigCache configCache = new ConfigCache();
-    private MetricsProbeService metricsProbeService = new NoOpMetricsProbeService();
     private GoConfigDao goConfigDao;
+    private CachedGoPartials cachedGoPartials;
+    private ConfigRepoConfig repoConfig;
 
     @Before
     public void setup() throws Exception {
@@ -85,22 +93,30 @@ public class GoFileConfigDataSourceTest {
         when(timeProvider.currentTime()).thenReturn(new Date());
         ServerVersion serverVersion = new ServerVersion();
         ConfigElementImplementationRegistry registry = ConfigElementImplementationRegistryMother.withNoPlugins();
+        ServerHealthService serverHealthService = new ServerHealthService();
+        cachedGoPartials = new CachedGoPartials(serverHealthService);
         dataSource = new GoFileConfigDataSource(new GoConfigMigration(new GoConfigMigration.UpgradeFailedHandler() {
             public void handle(Exception e) {
                 throw new RuntimeException(e);
             }
-        }, configRepository, new TimeProvider(), configCache, registry, metricsProbeService),
-                configRepository, systemEnvironment, timeProvider, configCache, serverVersion, registry, metricsProbeService, mock(ServerHealthService.class));
+        }, configRepository, new TimeProvider(), configCache, registry),
+                configRepository, systemEnvironment, timeProvider, configCache, serverVersion, registry,  mock(ServerHealthService.class), cachedGoPartials);
         dataSource.upgradeIfNecessary();
-        CachedFileGoConfig fileService = new CachedFileGoConfig(dataSource, new ServerHealthService());
-        fileService.loadConfigIfNull();
-        goConfigDao = new GoConfigDao(fileService, metricsProbeService);
+        CachedGoConfig cachedGoConfig = new CachedGoConfig(serverHealthService, dataSource, mock(CachedGoPartials.class));
+        cachedGoConfig.loadConfigIfNull();
+        goConfigDao = new GoConfigDao(cachedGoConfig);
         configHelper.load();
         configHelper.usingCruiseConfigDao(goConfigDao);
+        GoConfigWatchList configWatchList = new GoConfigWatchList(cachedGoConfig);
+        ConfigElementImplementationRegistry configElementImplementationRegistry = new ConfigElementImplementationRegistry(new NoPluginsInstalled());
+        GoConfigPluginService configPluginService = new GoConfigPluginService(mock(ConfigRepoExtension.class), new ConfigCache(), configElementImplementationRegistry, cachedGoConfig);
+        repoConfig = new ConfigRepoConfig(new GitMaterialConfig("url"), "plugin");
+        configHelper.addConfigRepo(repoConfig);
     }
 
     @After
     public void teardown() throws Exception {
+        cachedGoPartials.clear();
         configHelper.onTearDown();
         systemEnvironment.reset(SystemEnvironment.ENABLE_CONFIG_MERGE_FEATURE);
     }
@@ -206,7 +222,7 @@ public class GoFileConfigDataSourceTest {
         CruiseConfig forEdit = configHolder.configForEdit;
         forEdit.addPipeline("my-awesome-group", PipelineConfigMother.createPipelineConfig("pipeline-foo", "stage-bar", "job-baz"));
         FileOutputStream fos = new FileOutputStream(dataSource.fileLocation());
-        new MagicalGoConfigXmlWriter(configCache, ConfigElementImplementationRegistryMother.withNoPlugins(), metricsProbeService).write(forEdit, fos, false);
+        new MagicalGoConfigXmlWriter(configCache, ConfigElementImplementationRegistryMother.withNoPlugins()).write(forEdit, fos, false);
 
         configHolder = dataSource.load();
         String xmlText = FileUtils.readFileToString(dataSource.fileLocation());
@@ -422,5 +438,154 @@ public class GoFileConfigDataSourceTest {
 
         GoFileConfigDataSource.GoConfigSaveResult goConfigSaveResult = dataSource.writeWithLock(configHelper.addPipelineCommand(originalMd5, "p1", "s", "b"), goConfigHolder);
         assertThat(goConfigSaveResult.getConfigSaveState(), is(ConfigSaveState.UPDATED));
+    }
+
+    @Test
+    public void shouldValidateConfigRepoLastKnownPartialsWithMainConfigAndUpdateConfigToIncludePipelinesFromPartials() {
+        String pipelineFromConfigRepo = "pipeline_from_config_repo";
+        final String pipelineInMain = "pipeline_in_main";
+        PartialConfig partialConfig = PartialConfigMother.withPipeline(pipelineFromConfigRepo, new RepoConfigOrigin(repoConfig, "1"));
+        cachedGoPartials.addOrUpdate(repoConfig.getMaterialConfig().getFingerprint(), partialConfig);
+        assertThat(cachedGoPartials.lastValidPartials().isEmpty(), is(true));
+
+        GoFileConfigDataSource.GoConfigSaveResult result = dataSource.writeWithLock(new UpdateConfigCommand() {
+            @Override
+            public CruiseConfig update(CruiseConfig cruiseConfig) throws Exception {
+                cruiseConfig.addPipeline("default", PipelineConfigMother.createPipelineConfig(pipelineInMain, "stage", "job"));
+                return cruiseConfig;
+            }
+        }, new GoConfigHolder(configHelper.currentConfig(), configHelper.currentConfig()));
+        assertThat(result.getConfigHolder().config.getAllPipelineNames().contains(new CaseInsensitiveString(pipelineFromConfigRepo)), is(true));
+        assertThat(result.getConfigHolder().config.getAllPipelineNames().contains(new CaseInsensitiveString(pipelineInMain)), is(true));
+        assertThat(cachedGoPartials.lastValidPartials().size(), is(1));
+        PartialConfig actualPartial = cachedGoPartials.lastValidPartials().get(0);
+        assertThat(actualPartial.getGroups(), is(partialConfig.getGroups()));
+        assertThat(actualPartial.getEnvironments(), is(partialConfig.getEnvironments()));
+        assertThat(actualPartial.getOrigin(), is(partialConfig.getOrigin()));
+
+    }
+
+    @Test
+    public void shouldFallbackToLastKnownValidPartialsForValidationWhenConfigSaveWithLastKnownPartialsWithMainConfigFails() {
+        String pipelineOneFromConfigRepo = "pipeline_one_from_config_repo";
+        String invalidPartial = "invalidPartial";
+        final String pipelineInMain = "pipeline_in_main";
+        PartialConfig validPartialConfig = PartialConfigMother.withPipeline(pipelineOneFromConfigRepo, new RepoConfigOrigin(repoConfig, "1"));
+        PartialConfig invalidPartialConfig = PartialConfigMother.invalidPartial(invalidPartial, new RepoConfigOrigin(repoConfig, "2"));
+        cachedGoPartials.addOrUpdate(repoConfig.getMaterialConfig().getFingerprint(), validPartialConfig);
+        cachedGoPartials.markAllKnownAsValid();
+        cachedGoPartials.addOrUpdate(repoConfig.getMaterialConfig().getFingerprint(), invalidPartialConfig);
+
+        GoFileConfigDataSource.GoConfigSaveResult result = dataSource.writeWithLock(new UpdateConfigCommand() {
+            @Override
+            public CruiseConfig update(CruiseConfig cruiseConfig) throws Exception {
+                cruiseConfig.addPipeline("default", PipelineConfigMother.createPipelineConfig(pipelineInMain, "stage", "job"));
+                return cruiseConfig;
+            }
+        }, new GoConfigHolder(configHelper.currentConfig(), configHelper.currentConfig()));
+        assertThat(result.getConfigHolder().config.getAllPipelineNames().contains(new CaseInsensitiveString(invalidPartial)), is(false));
+        assertThat(result.getConfigHolder().config.getAllPipelineNames().contains(new CaseInsensitiveString(pipelineOneFromConfigRepo)), is(true));
+        assertThat(result.getConfigHolder().config.getAllPipelineNames().contains(new CaseInsensitiveString(pipelineInMain)), is(true));
+        assertThat(cachedGoPartials.lastValidPartials().size(), is(1));
+        PartialConfig partialConfig = cachedGoPartials.lastValidPartials().get(0);
+        assertThat(partialConfig.getGroups(), is(validPartialConfig.getGroups()));
+        assertThat(partialConfig.getEnvironments(), is(validPartialConfig.getEnvironments()));
+        assertThat(partialConfig.getOrigin(), is(validPartialConfig.getOrigin()));
+    }
+
+    @Rule
+    public ExpectedException thrown = ExpectedException.none();
+
+    @Test
+    public void shouldNotSaveConfigIfValidationOfLastKnownValidPartialsMergedWithMainConfigFails() {
+        final PipelineConfig upstream = PipelineConfigMother.createPipelineConfig(UUID.randomUUID().toString(), "s1", "j1");
+        configHelper.addPipeline(upstream);
+        String remotePipeline = "remote_pipeline";
+        RepoConfigOrigin repoConfigOrigin = new RepoConfigOrigin(this.repoConfig, "1");
+        PartialConfig partialConfig = PartialConfigMother.pipelineWithDependencyMaterial(remotePipeline, upstream, repoConfigOrigin);
+        cachedGoPartials.addOrUpdate(this.repoConfig.getMaterialConfig().getFingerprint(), partialConfig);
+        cachedGoPartials.markAllKnownAsValid();
+        thrown.expect(RuntimeException.class);
+        thrown.expectCause(any(GoConfigInvalidException.class));
+        thrown.expectMessage(String.format("Stage with name 's1' does not exist on pipeline '%s', it is being referred to from pipeline '%s' (%s)", upstream.name(), remotePipeline, repoConfigOrigin.displayName()));
+        dataSource.writeWithLock(new UpdateConfigCommand() {
+            @Override
+            public CruiseConfig update(CruiseConfig cruiseConfig) throws Exception {
+                PipelineConfig pipelineConfig = cruiseConfig.getPipelineConfigByName(upstream.name());
+                pipelineConfig.clear();
+                pipelineConfig.add(new StageConfig(new CaseInsensitiveString("new_stage"), new JobConfigs(new JobConfig("job"))));
+                return cruiseConfig;
+            }
+        }, new GoConfigHolder(configHelper.currentConfig(), configHelper.currentConfig()));
+    }
+
+    @Test
+    public void shouldNotRetryConfigSaveWhenConfigRepoIsNotSetup() throws Exception {
+        MagicalGoConfigXmlLoader loader = mock(MagicalGoConfigXmlLoader.class);
+        MagicalGoConfigXmlWriter writer = mock(MagicalGoConfigXmlWriter.class);
+        GoConfigMigration migration = mock(GoConfigMigration.class);
+        ServerHealthService serverHealthService = mock(ServerHealthService.class);
+        CachedGoPartials cachedGoPartials = mock(CachedGoPartials.class);
+        ConfigRepository configRepository = mock(ConfigRepository.class);
+        dataSource = new GoFileConfigDataSource(migration, configRepository, systemEnvironment, timeProvider, mock(ServerVersion.class), loader, writer, serverHealthService, cachedGoPartials);
+
+        final String pipelineName = UUID.randomUUID().toString();
+        BasicCruiseConfig cruiseConfig = GoConfigMother.configWithPipelines(pipelineName);
+        ConfigErrors configErrors = new ConfigErrors();
+        configErrors.add("key", "some error");
+        when(loader.loadConfigHolder(Matchers.any(String.class))).thenThrow(new GoConfigInvalidException(cruiseConfig, configErrors.firstError()));
+
+        try {
+            dataSource.writeWithLock(new UpdateConfigCommand() {
+                @Override
+                public CruiseConfig update(CruiseConfig cruiseConfig) throws Exception {
+                    cruiseConfig.getPipelineConfigByName(new CaseInsensitiveString(pipelineName)).clear();
+                    return cruiseConfig;
+                }
+            }, new GoConfigHolder(cruiseConfig, cruiseConfig));
+            fail("expected the test to fail");
+        } catch (Exception e) {
+            verifyZeroInteractions(configRepository);
+            verifyZeroInteractions(serverHealthService);
+            verify(loader, times(1)).loadConfigHolder(Matchers.any(String.class), Matchers.any(MagicalGoConfigXmlLoader.Callback.class));
+        }
+    }
+
+    @Test
+    public void shouldReturnTrueWhenBothValidAndKnownPartialsListsAreEmpty() {
+        assertThat(dataSource.areKnownPartialsSameAsValidPartials(new ArrayList<PartialConfig>(), new ArrayList<PartialConfig>()), is(true));
+    }
+
+    @Test
+    public void shouldReturnTrueWhenValidPartialsListIsSameAsKnownPartialList() {
+        ConfigRepoConfig repo1 = new ConfigRepoConfig(MaterialConfigsMother.gitMaterialConfig(), "plugin");
+        ConfigRepoConfig repo2 = new ConfigRepoConfig(MaterialConfigsMother.svnMaterialConfig(), "plugin");
+        PartialConfig partialConfig1 = PartialConfigMother.withPipeline("p1", new RepoConfigOrigin(repo1, "git_r1"));
+        PartialConfig partialConfig2 = PartialConfigMother.withPipeline("p2", new RepoConfigOrigin(repo2, "svn_r1"));
+        List<PartialConfig> known = asList(partialConfig1, partialConfig2);
+        List<PartialConfig> valid = asList(partialConfig1, partialConfig2);
+        assertThat(dataSource.areKnownPartialsSameAsValidPartials(known, valid), is(true));
+    }
+
+    @Test
+    public void shouldReturnFalseWhenValidPartialsListIsNotTheSameAsKnownPartialList() {
+        PartialConfig partialConfig1 = PartialConfigMother.withPipeline("p1", new RepoConfigOrigin(new ConfigRepoConfig(MaterialConfigsMother.gitMaterialConfig(), "plugin"), "git_r1"));
+        PartialConfig partialConfig2 = PartialConfigMother.withPipeline("p2", new RepoConfigOrigin(new ConfigRepoConfig(MaterialConfigsMother.svnMaterialConfig(), "plugin"), "svn_r1"));
+        PartialConfig partialConfig3 = PartialConfigMother.withPipeline("p1", new RepoConfigOrigin(new ConfigRepoConfig(MaterialConfigsMother.gitMaterialConfig(), "plugin"), "git_r2"));
+        PartialConfig partialConfig4 = PartialConfigMother.withPipeline("p2", new RepoConfigOrigin(new ConfigRepoConfig(MaterialConfigsMother.svnMaterialConfig(), "plugin"), "svn_r2"));
+        List<PartialConfig> known = asList(partialConfig1, partialConfig2);
+        List<PartialConfig> valid = asList(partialConfig3, partialConfig4);
+        assertThat(dataSource.areKnownPartialsSameAsValidPartials(known, valid), is(false));
+    }
+
+    @Test
+    public void shouldReturnFalseWhenValidPartialsListIsEmptyWhenKnownListIsNot() {
+        ConfigRepoConfig repo1 = new ConfigRepoConfig(MaterialConfigsMother.gitMaterialConfig(), "plugin");
+        ConfigRepoConfig repo2 = new ConfigRepoConfig(MaterialConfigsMother.svnMaterialConfig(), "plugin");
+        PartialConfig partialConfig1 = PartialConfigMother.withPipeline("p1", new RepoConfigOrigin(repo1, "git_r1"));
+        PartialConfig partialConfig2 = PartialConfigMother.withPipeline("p2", new RepoConfigOrigin(repo2, "svn_r1"));
+        List<PartialConfig> known = asList(partialConfig1, partialConfig2);
+        List<PartialConfig> valid = new ArrayList<>();
+        assertThat(dataSource.areKnownPartialsSameAsValidPartials(known, valid), is(false));
     }
 }

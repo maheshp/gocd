@@ -1,5 +1,5 @@
 /*************************GO-LICENSE-START*********************************
- * Copyright 2014 ThoughtWorks, Inc.
+ * Copyright 2016 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,17 +19,26 @@ package com.thoughtworks.go.util.validators;
 import java.io.File;
 import java.io.IOException;
 
+import static com.thoughtworks.go.util.StringUtil.*;
 import static java.text.MessageFormat.format;
 
 import com.thoughtworks.go.util.SystemEnvironment;
-import com.thoughtworks.go.util.validators.Validation;
-import com.thoughtworks.go.util.validators.Validator;
 import org.apache.commons.io.FileUtils;
 
 public class JettyWorkDirValidator implements Validator {
+
+    private SystemEnvironment systemEnvironment;
+
+    public JettyWorkDirValidator() {
+        this(new SystemEnvironment());
+    }
+
+    protected JettyWorkDirValidator(SystemEnvironment systemEnvironment) {
+        this.systemEnvironment = systemEnvironment;
+    }
+
     public Validation validate(Validation val) {
-        SystemEnvironment systemEnvironment = new SystemEnvironment();
-        if (SystemEnvironment.getProperty("jetty.home", "").equals("")) {
+        if (isBlank(systemEnvironment.getPropertyImpl("jetty.home"))) {
             systemEnvironment.setProperty("jetty.home", systemEnvironment.getPropertyImpl("user.dir"));
         }
         systemEnvironment.setProperty("jetty.base", systemEnvironment.getPropertyImpl("jetty.home"));

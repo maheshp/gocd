@@ -19,28 +19,69 @@ module ApiV2
 
     before_action :check_user_and_404
     before_action :check_admin_user_and_401, except: [:index, :show]
-
+    before_action :set_default_values_if_not_present, only: [:bulk_update]
     before_action :load_agent, only: [:show, :edit, :update, :destroy, :enable, :disable]
 
     def index
-      presenters = AgentsRepresenter.new(agent_service.agents.to_a)
-      render json_hal_v2: presenters.to_hash(url_builder: self)
+      presenters    = AgentsRepresenter.new(agent_service.agents.to_a)
+      response_hash = presenters.to_hash(url_builder: self)
+      if stale?(etag: Digest::MD5.hexdigest(JSON.generate(response_hash)))
+        render DEFAULT_FORMAT => response_hash
+      end
     end
 
     def show
-      render json_hal_v2: agent_presenter.to_hash(url_builder: self)
+      render DEFAULT_FORMAT => agent_presenter.to_hash(url_builder: self)
     end
 
     def update
       result    = HttpOperationResult.new
-      agent_service.updateAgentAttributes(current_user, result, params[:uuid], params[:hostname], maybe_join(params[:resources]), maybe_join(params[:environments]), to_enabled_tristate)
+
+      @agent_instance = agent_service.updateAgentAttributes(current_user, result, params[:uuid], params[:hostname], maybe_join(params[:resources]), maybe_join(params[:environments]), to_enabled_tristate)
 
       if result.isSuccess
         load_agent
-        render json_hal_v2: agent_presenter.to_hash(url_builder: self)
+        render DEFAULT_FORMAT => agent_presenter.to_hash(url_builder: self)
       else
-        render_http_operation_result(result)
+        json = agent_presenter.to_hash(url_builder: self)
+        render_http_operation_result(result, {data: json})
       end
+    end
+
+    def destroy
+      result = HttpOperationResult.new
+      agent_service.deleteAgents(current_user, result, [params[:uuid]])
+      render_http_operation_result(result)
+    end
+
+    def bulk_update
+      result = HttpLocalizedOperationResult.new
+      uuids = params[:uuids]
+      resources_to_add = params[:operations][:resources][:add]
+      resources_to_remove = params[:operations][:resources][:remove]
+      environments_to_add = params[:operations][:environments][:add]
+      environment_to_remove = params[:operations][:environments][:remove]
+      agent_service.bulkUpdateAgentAttributes(current_user, result, uuids, resources_to_add, resources_to_remove, environments_to_add, environment_to_remove, to_enabled_tristate)
+      render_http_operation_result(result)
+    end
+
+    def bulk_destroy
+      result = HttpOperationResult.new
+      agent_service.deleteAgents(current_user, result, Array.wrap(params[:uuids]))
+      render_http_operation_result(result)
+    end
+
+    private
+
+    def set_default_values_if_not_present
+      params[:uuids] = params[:uuids] || []
+      params[:operations] = params[:operations] || {}
+      params[:operations][:resources] = params[:operations][:resources] || {}
+      params[:operations][:environments] = params[:operations][:environments] || {}
+      params[:operations][:resources][:add] = params[:operations][:resources][:add] || []
+      params[:operations][:resources][:remove] = params[:operations][:resources][:remove] || []
+      params[:operations][:environments][:add] = params[:operations][:environments][:add] || []
+      params[:operations][:environments][:remove] = params[:operations][:environments][:remove] || []
     end
 
     def maybe_join(obj)
@@ -51,12 +92,6 @@ module ApiV2
       end
     end
 
-    def destroy
-      result = HttpOperationResult.new
-      agent_service.deleteAgents(current_user, result, [params[:uuid]])
-      render_http_operation_result(result)
-    end
-
     private
 
     attr_reader :agent_instance
@@ -65,9 +100,9 @@ module ApiV2
       enabled = params[:agent_config_state]
       if enabled.blank?
         TriState.UNSET
-      elsif enabled =~ /enabled/i
+      elsif enabled =~ /\Aenabled\Z/i
         TriState.TRUE
-      elsif enabled =~ /disabled/i
+      elsif enabled =~ /\Adisabled\Z/i
         TriState.FALSE
       else
         raise BadRequest.new('The value of `agent_config_state` can be one of `Enabled`, `Disabled` or null.')
@@ -84,7 +119,7 @@ module ApiV2
     end
 
     def agent_view_model
-      com.thoughtworks.go.server.ui.AgentViewModel.new(@agent_instance, environment_config_service.environmentsFor(@agent_instance.getUuid()))
+      com.thoughtworks.go.server.ui.AgentViewModel.new(@agent_instance, environment_config_service.environmentsFor(@agent_instance.getUuid())) if @agent_instance
     end
   end
 

@@ -1,0 +1,116 @@
+/*
+ * Copyright 2016 ThoughtWorks, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+define(['mithril', 'lodash',
+  'helpers/form_helper',
+  'views/agents/resources_list_widget',
+  'views/agents/environments_list_widget',
+  'models/agents/resources', 'models/agents/environments'
+], function (m, _, f,
+             ResourcesListWidget,
+             EnvironmentsListWidget,
+             Resources, Environments) {
+
+  var ButtonRowWidget = {
+    controller: function (args) {
+
+      var ctrl = {
+        dropdownClass: function (name) {
+          return args.dropDownState(name) ? 'has-dropdown is-open' : 'has-dropdown';
+        },
+        resourcesButtonClicked:    function (e) {
+          e.preventDefault();
+          Resources.init(args.selectedAgents());
+          args.toggleDropDownState('resource');
+        },
+        environmentsButtonClicked: function (e) {
+          e.preventDefault();
+          Environments.init(args.selectedAgents());
+          args.toggleDropDownState('environment');
+        }
+      };
+
+      return ctrl;
+    },
+
+    view: function (ctrl, args) {
+      return (
+        <header class="page-header">
+          <f.row>
+            <f.column size={5}>
+              <h1>Agents</h1>
+              <a href="/go/agents" class="old-agents-page">Switch back to old view</a>
+            </f.column>
+
+            <f.column size={7}>
+              <ul class="button-group agent-button-group">
+                <li>
+                  <f.button class="button"
+                            onclick={args.onDelete}
+                            disabled={!args.isAnyAgentSelected()}>
+                    Delete
+                  </f.button>
+                </li>
+
+                <li>
+                  <f.button class="button"
+                            onclick={args.onDisable}
+                            disabled={!args.isAnyAgentSelected()}>
+                    Disable
+                  </f.button>
+                </li>
+
+                <li>
+                  <f.button class="button"
+                            onclick={args.onEnable}
+                            disabled={!args.isAnyAgentSelected()}>
+                    Enable
+                  </f.button>
+                </li>
+
+                <li class={ ctrl.dropdownClass('resource') }>
+                  <f.button class="button"
+                            onclick={ctrl.resourcesButtonClicked}
+                            disabled={!args.isAnyAgentSelected()}>
+                    Resources
+                  </f.button>
+
+
+                  <ResourcesListWidget hideDropDown={args.hideDropDown}
+                                       dropDownReset={args.dropDownReset}
+                                       onResourcesUpdate={args.onResourcesUpdate}/>
+                </li>
+
+                <li class={ctrl.dropdownClass('environment')}>
+                  <f.button class="button"
+                            onclick={ctrl.environmentsButtonClicked}
+                            disabled={!args.isAnyAgentSelected()}>
+                    Environments
+                  </f.button>
+
+                  <EnvironmentsListWidget hideDropDown={args.hideDropDown}
+                                          dropDownReset={args.dropDownReset}
+                                          onEnvironmentsUpdate={args.onEnvironmentsUpdate}/>
+                </li>
+              </ul>
+            </f.column>
+          </f.row>
+        </header>
+      );
+    }
+  };
+  return ButtonRowWidget;
+});

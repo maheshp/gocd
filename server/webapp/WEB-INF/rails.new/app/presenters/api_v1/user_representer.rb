@@ -16,7 +16,7 @@
 
 module ApiV1
   class UserRepresenter < ApiV1::UserSummaryRepresenter
-  attr_reader :user
+    attr_reader :user
 
     def initialize(user)
       @user = user

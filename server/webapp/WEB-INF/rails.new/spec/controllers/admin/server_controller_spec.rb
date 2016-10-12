@@ -20,7 +20,6 @@ describe Admin::ServerController do
   include MockRegistryModule
 
   before do
-    controller.stub(:populate_health_messages)
     controller.stub(:set_current_user)
   end
 
@@ -156,9 +155,6 @@ describe Admin::ServerController do
       render_views
 
       before do
-        controller.stub(:populate_health_messages) do
-          controller.instance_variable_set :@current_server_health_states, com.thoughtworks.go.serverhealth.ServerHealthStates.new
-        end
         user = com.thoughtworks.go.server.domain.Username.new(CaseInsensitiveString.new("foo"))
         controller.stub(:set_current_user) do
           controller.instance_variable_set :@user, user
@@ -338,7 +334,8 @@ describe Admin::ServerController do
     end
 
     it "should resolve /admin/config/server/validate" do
-      {:get => "/admin/config/server/validate"}.should route_to(:controller => "admin/server", :action => "validate")
+      expect_any_instance_of(HeaderConstraint).to receive(:matches?).with(any_args).and_return(true)
+      {:post => "/admin/config/server/validate"}.should route_to(:controller => "admin/server", :action => "validate")
     end
 
     it "should validate email" do

@@ -1,18 +1,18 @@
-/*************************GO-LICENSE-START*********************************
- * Copyright 2014 ThoughtWorks, Inc.
+/*
+ * Copyright 2016 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *************************GO-LICENSE-END***********************************/
+ */
 
 package com.thoughtworks.go.helpers;
 
@@ -20,13 +20,10 @@ import com.thoughtworks.go.config.*;
 import com.thoughtworks.go.domain.JobIdentifier;
 import com.thoughtworks.go.domain.JobInstance;
 import com.thoughtworks.go.domain.exception.IllegalArtifactLocationException;
-import com.thoughtworks.go.helper.NoOpMetricsProbeService;
-import com.thoughtworks.go.metrics.service.MetricsProbeService;
 import com.thoughtworks.go.server.service.ArtifactsDirHolder;
 import com.thoughtworks.go.server.service.ArtifactsService;
 import com.thoughtworks.go.server.service.GoConfigService;
 import com.thoughtworks.go.server.service.InstanceFactory;
-import com.thoughtworks.go.server.util.ServerVersion;
 import com.thoughtworks.go.serverhealth.ServerHealthService;
 import com.thoughtworks.go.service.ConfigRepository;
 import com.thoughtworks.go.util.*;
@@ -47,7 +44,6 @@ import static org.mockito.Mockito.mock;
  * @understands How to set up log files for testing
  */
 public final class LogFileHelper {
-    private static MetricsProbeService metricsProbeService = new NoOpMetricsProbeService();
     private ArtifactsService artifactsService;
     private List<File> createdFiles = new ArrayList<File>();
     private LogFileHelper(File artifactsDir) throws IOException {
@@ -218,17 +214,13 @@ public final class LogFileHelper {
         private File artifactsDir;
 
         public FakeGoConfigService(File artifactsDir) throws IOException {
-            super(new GoConfigDao(new MergedGoConfig(new ServerHealthService(),
-                          new CachedFileGoConfig(new GoFileConfigDataSource(new DoNotUpgrade(), mock(ConfigRepository.class), new SystemEnvironment(), new TimeProvider(),
-                                  new ConfigCache(), new ServerVersion(), ConfigElementImplementationRegistryMother.withNoPlugins(), metricsProbeService, new ServerHealthService()),
-                                  new ServerHealthService()),mock(GoPartialConfig.class)),
-                    metricsProbeService) {
+            super(new GoConfigDao(new CachedGoConfig(new ServerHealthService(), mock(GoFileConfigDataSource.class), mock(CachedGoPartials.class))) {
                 public CruiseConfig load() {
                     return null;
                 }
-            }, null, new SystemTimeClock(), new GoConfigMigration(mock(ConfigRepository.class), new TimeProvider(), new ConfigCache(), ConfigElementImplementationRegistryMother.withNoPlugins(),
-                    metricsProbeService), null, null, null, ConfigElementImplementationRegistryMother.withNoPlugins(), metricsProbeService,
-                    new InstanceFactory());
+            }, null, new SystemTimeClock(), new GoConfigMigration(mock(ConfigRepository.class), new TimeProvider(), new ConfigCache(), ConfigElementImplementationRegistryMother.withNoPlugins()
+                    ), null, null, ConfigElementImplementationRegistryMother.withNoPlugins(),
+                    new InstanceFactory(), mock(CachedGoPartials.class));
             this.artifactsDir = artifactsDir;
         }
 

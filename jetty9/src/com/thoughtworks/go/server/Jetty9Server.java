@@ -31,7 +31,6 @@ import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.AbstractHandler;
 import org.eclipse.jetty.server.handler.ContextHandler;
 import org.eclipse.jetty.server.handler.HandlerCollection;
-import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.webapp.JettyWebXmlConfiguration;
 import org.eclipse.jetty.webapp.WebAppContext;
 import org.eclipse.jetty.webapp.WebInfConfiguration;
@@ -42,6 +41,7 @@ import org.xml.sax.SAXException;
 import javax.management.MBeanServer;
 import javax.net.ssl.SSLSocketFactory;
 import javax.servlet.ServletException;
+import javax.servlet.SessionCookieConfig;
 import javax.servlet.UnavailableException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -80,6 +80,9 @@ public class Jetty9Server extends AppServer {
         createWebAppContext();
         addResourceHandler(handlers, webAppContext);
         handlers.addHandler(webAppContext);
+        JettyCustomErrorPageHandler errorHandler = new JettyCustomErrorPageHandler();
+        webAppContext.setErrorHandler(errorHandler);
+        server.addBean(errorHandler);
         server.setHandler(handlers);
         performCustomConfiguration();
         server.setStopAtShutdown(true);
@@ -103,19 +106,14 @@ public class Jetty9Server extends AppServer {
 
     @Override
     public void setCookieExpirePeriod(int cookieExpirePeriod) {
-        webAppContext.getSessionHandler().getSessionManager().getSessionCookieConfig().setMaxAge(cookieExpirePeriod);
+        SessionCookieConfig cookieConfig = webAppContext.getSessionHandler().getSessionManager().getSessionCookieConfig();
+        cookieConfig.setHttpOnly(true);
+        cookieConfig.setMaxAge(cookieExpirePeriod);
     }
 
     @Override
     public void setInitParameter(String name, String value) {
         webAppContext.setInitParameter(name, value);
-    }
-
-    @Override
-    public void addStopServlet() {
-        ServletHolder holder = new ServletHolder();
-        holder.setServlet(new StopJettyFromLocalhostServlet(this));
-        webAppContext.addServlet(holder, "/jetty/stop");
     }
 
     @Override
@@ -149,7 +147,17 @@ public class Jetty9Server extends AppServer {
 
         private class Handler extends AbstractHandler {
             public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
-                if (target.equals("/")) {
+
+                if ("/go".equals(request.getPathInfo()) || request.getPathInfo().startsWith("/go/")) {
+                    return;
+                }
+
+                response.setHeader("X-XSS-Protection", "1; mode=block");
+                response.setHeader("X-Content-Type-Options", "nosniff");
+                response.setHeader("X-Frame-Options", "SAMEORIGIN");
+                response.setHeader("X-UA-Compatible", "chrome=1");
+
+                if ("/".equals(target)) {
                     response.setHeader("Location", GoConstants.GO_URL_CONTEXT + "/home");
                     response.setStatus(301);
                     response.setHeader("Content-Type", "text/html");

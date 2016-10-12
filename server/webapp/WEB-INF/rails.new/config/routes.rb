@@ -1,5 +1,5 @@
 ##########################GO-LICENSE-START################################
-# Copyright 2014 ThoughtWorks, Inc.
+# Copyright 2016 ThoughtWorks, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ Go::Application.routes.draw do
     PIPELINE_LOCATOR_CONSTRAINTS = {:pipeline_name => PIPELINE_NAME_FORMAT, :pipeline_counter => PIPELINE_COUNTER_FORMAT}
     STAGE_LOCATOR_CONSTRAINTS = {:stage_name => STAGE_NAME_FORMAT, :stage_counter => STAGE_COUNTER_FORMAT}.merge(PIPELINE_LOCATOR_CONSTRAINTS)
     ENVIRONMENT_NAME_CONSTRAINT = {:name => ENVIRONMENT_NAME_FORMAT}
+    PLUGIN_ID_FORMAT = /[\w\-.]+/
     ALLOW_DOTS = /[^\/]+/
     CONSTANTS = true
   end
@@ -43,7 +44,6 @@ Go::Application.routes.draw do
 
   get 'admin/backup' => 'admin/backup#index', as: :backup_server
   post 'admin/backup' => 'admin/backup#perform_backup', as: :perform_backup
-  delete 'admin/backup/delete_all' => 'admin/backup#delete_all', as: :delete_backup_history #NOT_IN_PRODUCTION don't remove this line, the build will remove this line when packaging the war
 
   get "admin/plugins" => "admin/plugins/plugins#index", as: :plugins_listing
   post 'admin/plugins' => 'admin/plugins/plugins#upload', as: :upload_plugin
@@ -78,15 +78,15 @@ Go::Application.routes.draw do
   post "admin/:stage_parent/:pipeline_name/stages" => "admin/stages#create", constraints: {pipeline_name: PIPELINE_NAME_FORMAT, stage_parent: /(pipelines|templates)/}, as: :admin_stage_create
   post "admin/:stage_parent/:pipeline_name/stages/:stage_name/index/increment" => "admin/stages#increment_index", constraints: {pipeline_name: PIPELINE_NAME_FORMAT, stage_parent: /(pipelines|templates)/, stage_name: STAGE_NAME_FORMAT}, as: :admin_stage_increment_index
   post "admin/:stage_parent/:pipeline_name/stages/:stage_name/index/decrement" => "admin/stages#decrement_index", constraints: {pipeline_name: PIPELINE_NAME_FORMAT, stage_parent: /(pipelines|templates)/, stage_name: STAGE_NAME_FORMAT}, as: :admin_stage_decrement_index
-  get "admin/:stage_parent/:pipeline_name/stages/:stage_name/:current_tab" => "admin/stages#edit", constraints: {pipeline_name: PIPELINE_NAME_FORMAT, stage_parent: /(pipelines|templates)/, current_tab: /(settings|environment_variables|permissions)/, stage_name: STAGE_NAME_FORMAT }, as: :admin_stage_edit
-  put "admin/:stage_parent/:pipeline_name/stages/:stage_name/:current_tab" => "admin/stages#update", constraints: {pipeline_name: PIPELINE_NAME_FORMAT, stage_parent: /(pipelines|templates)/, current_tab: /(settings|environment_variables|permissions)/, stage_name: STAGE_NAME_FORMAT }, as: :admin_stage_update
+  get "admin/:stage_parent/:pipeline_name/stages/:stage_name/:current_tab" => "admin/stages#edit", constraints: {pipeline_name: PIPELINE_NAME_FORMAT, stage_parent: /(pipelines|templates)/, current_tab: /(settings|environment_variables|permissions)/, stage_name: STAGE_NAME_FORMAT}, as: :admin_stage_edit
+  put "admin/:stage_parent/:pipeline_name/stages/:stage_name/:current_tab" => "admin/stages#update", constraints: {pipeline_name: PIPELINE_NAME_FORMAT, stage_parent: /(pipelines|templates)/, current_tab: /(settings|environment_variables|permissions)/, stage_name: STAGE_NAME_FORMAT}, as: :admin_stage_update
 
   get "admin/:stage_parent/:pipeline_name/stages/:stage_name/jobs" => "admin/jobs#index", constraints: {pipeline_name: PIPELINE_NAME_FORMAT, stage_name: STAGE_NAME_FORMAT, stage_parent: /(pipelines|templates)/}, as: :admin_job_listing
   get "admin/:stage_parent/:pipeline_name/stages/:stage_name/jobs/new" => "admin/jobs#new", constraints: {pipeline_name: PIPELINE_NAME_FORMAT, stage_name: STAGE_NAME_FORMAT, stage_parent: /(pipelines|templates)/}, as: :admin_job_new
   post "admin/:stage_parent/:pipeline_name/stages/:stage_name/jobs" => "admin/jobs#create", constraints: {pipeline_name: PIPELINE_NAME_FORMAT, stage_name: STAGE_NAME_FORMAT, stage_parent: /(pipelines|templates)/}, as: :admin_job_create
   put "admin/:stage_parent/:pipeline_name/stages/:stage_name/job/:job_name/:current_tab" => "admin/jobs#update", constraints: {pipeline_name: PIPELINE_NAME_FORMAT, stage_name: STAGE_NAME_FORMAT, stage_parent: /(pipelines|templates)/, job_name: JOB_NAME_FORMAT}, as: :admin_job_update #TODO: use job name format, so part splitting doesn't mess us up -JJ
   delete "admin/:stage_parent/:pipeline_name/stages/:stage_name/job/:job_name" => "admin/jobs#destroy", constraints: {pipeline_name: PIPELINE_NAME_FORMAT, stage_name: STAGE_NAME_FORMAT, stage_parent: /(pipelines|templates)/, job_name: JOB_NAME_FORMAT}, as: :admin_job_delete
-  get "admin/:stage_parent/:pipeline_name/stages/:stage_name/job/:job_name/:current_tab" => "admin/jobs#edit", constraints: {pipeline_name: PIPELINE_NAME_FORMAT,  stage_name: STAGE_NAME_FORMAT, stage_parent: /(pipelines|templates)/, current_tab: /#{["settings", "environment_variables", "artifacts", "resources", "tabs"].join("|")}/, job_name: JOB_NAME_FORMAT}, as: :admin_job_edit
+  get "admin/:stage_parent/:pipeline_name/stages/:stage_name/job/:job_name/:current_tab" => "admin/jobs#edit", constraints: {pipeline_name: PIPELINE_NAME_FORMAT, stage_name: STAGE_NAME_FORMAT, stage_parent: /(pipelines|templates)/, current_tab: /#{["settings", "environment_variables", "artifacts", "resources", "tabs"].join("|")}/, job_name: JOB_NAME_FORMAT}, as: :admin_job_edit
   #put "admin/:stage_parent/:pipeline_name/stages/:stage_name/job/:job_name/:current_tab" => "admin/jobs#update", constraints: {pipeline_name: PIPELINE_NAME_FORMAT,  stage_name: STAGE_NAME_FORMAT, stage_parent: /(pipelines|templates)/, current_tab: /#{["settings", "environment_variables", "artifacts", "resources", "tabs"].join("|")}/, job_name: JOB_NAME_FORMAT}, as: :admin_job_update
 
   get "admin/commands" => "admin/commands#index", as: :admin_commands
@@ -111,7 +111,7 @@ Go::Application.routes.draw do
 
   get "admin/config/server" => "admin/server#index", as: :edit_server_config
   post "admin/config/server/update" => "admin/server#update", as: :update_server_config
-  get "admin/config/server/validate" => "admin/server#validate", as: :validate_server_config_params
+  post "admin/config/server/validate" => "admin/server#validate", as: :validate_server_config_params, constraints: HeaderConstraint.new
   post "admin/config/server/test_email" => "admin/server#test_email", as: :send_test_email
   post "admin/config/server/validate_ldap" => "admin/server#validate_ldap", as: :validate_ldap_settings
 
@@ -142,10 +142,10 @@ Go::Application.routes.draw do
   get "admin/package_definitions/:repo_id/:package_id/for_new_pipeline_wizard" => "admin/package_definitions#show_for_new_pipeline_wizard", as: :package_definitions_show_for_new_pipeline_wizard
   get "admin/package_definitions/:repo_id/:package_id/with_repository_list" => "admin/package_definitions#show_with_repository_list", as: :package_definitions_show_with_repository_list
   delete "admin/package_definitions/:repo_id/:package_id" => "admin/package_definitions#destroy", as: :package_definition_delete
-  get "admin/package_definitions/check_connection" => "admin/package_definitions#check_connection", as: :package_definition_check_connection
+  post "admin/package_definitions/check_connection" => "admin/package_definitions#check_connection", as: :package_definition_check_connection, constraints: HeaderConstraint.new
 
   get "admin/package_repositories/new" => "admin/package_repositories#new", as: :package_repositories_new
-  get "admin/package_repositories/check_connection" => "admin/package_repositories#check_connection", as: :package_repositories_check_connection
+  post "admin/package_repositories/check_connection" => "admin/package_repositories#check_connection", as: :package_repositories_check_connection, constraints: HeaderConstraint.new
   get "admin/package_repositories/list" => "admin/package_repositories#list", as: :package_repositories_list
   get "admin/package_repositories/:id/edit" => "admin/package_repositories#edit", as: :package_repositories_edit
   post "admin/package_repositories" => "admin/package_repositories#create", as: :package_repositories_create
@@ -216,16 +216,30 @@ Go::Application.routes.draw do
   end
   match "environments(.:format)" => 'environments#index', defaults: {:format => :html}, via: [:post, :get], as: :environments
 
-  scope :api, as: :apiv1 do
+  scope :api, as: :apiv1, format: false do
     api_version(:module => 'ApiV1', header: {name: 'Accept', value: 'application/vnd.go.cd.v1+json'}) do
-      resources :backups, only: [:create]
+      resources :backups, only: [:create], constraints: HeaderConstraint.new
 
-      resources :users, param: :login_name, only: [:create, :index, :show, :destroy], constraints: { login_name: USER_NAME_FORMAT } do
+      resources :users, param: :login_name, only: [:create, :index, :show, :destroy], constraints: {login_name: /(.*?)/} do
         patch :update, on: :member
       end
 
-      resources :agents, param: :uuid, except: [:new, :create, :edit, :update] do
-        patch :update, on: :member
+      namespace :admin do
+        resources :pipelines, param: :pipeline_name, only: [:show, :update, :create, :destroy], constraints: {pipeline_name: PIPELINE_NAME_FORMAT}
+        resources :templates, param: :template_name, only: [:show, :index, :update, :create, :destroy], constraints: {template_name: TEMPLATE_NAME_FORMAT}
+        resources :environments, param: :name, only: [:show, :destroy, :create, :update, :index], constraints: {:name => ENVIRONMENT_NAME_FORMAT} do
+          patch on: :member, action: :patch
+          put on: :member, action: :put
+        end
+        post :material_test, controller: :material_test, action: :test, as: :material_test
+        namespace :internal do
+          resources :pipelines, only: [:index]
+          resources :resources, only: [:index]
+          resources :environments, only: [:index]
+          resources :command_snippets, only: [:index]
+        end
+        resources :plugin_info, controller: 'plugin_infos', param: :id, only: [:index, :show], constraints: {id: PLUGIN_ID_FORMAT}
+        resources :scms, param: :material_name, controller: :pluggable_scms, only: [:index, :show, :create, :update], constraints: {material_name: ALLOW_DOTS}
       end
 
       get 'stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter' => 'stages#show', constraints: {pipeline_name: PIPELINE_NAME_FORMAT, pipeline_counter: PIPELINE_COUNTER_FORMAT, stage_name: STAGE_NAME_FORMAT, stage_counter: STAGE_COUNTER_FORMAT}, as: :stage_instance_by_counter_api
@@ -233,14 +247,49 @@ Go::Application.routes.draw do
 
       get 'dashboard', controller: :dashboard, action: :dashboard, as: :show_dashboard
 
+      get 'version', controller: :version, action: :show, as: :version
+
+      get 'version_infos/stale', controller: :version_infos, action: :stale, as: :stale_version_info
+      patch 'version_infos/go_server', controller: :version_infos, action: :update_server, as: :update_server_version_info
+
       match '*url', via: :all, to: 'errors#not_found'
     end
   end
 
-  scope :api, as: :apiv2 do
+  scope :api, as: :apiv2, format: false do
     api_version(:module => 'ApiV2', header: {name: 'Accept', value: 'application/vnd.go.cd.v2+json'}) do
+      namespace :admin do
+        resources :pipelines, param: :pipeline_name, only: [:show, :update, :create, :destroy], constraints: {pipeline_name: PIPELINE_NAME_FORMAT}
+      end
+
       resources :agents, param: :uuid, except: [:new, :create, :edit, :update] do
         patch :update, on: :member
+        patch on: :collection, action: :bulk_update
+        delete on: :collection, action: :bulk_destroy
+      end
+
+      match '*url', via: :all, to: 'errors#not_found'
+    end
+  end
+
+  scope :api, as: :apiv3, format: false do
+    api_version(:module => 'ApiV3', header: {name: 'Accept', value: 'application/vnd.go.cd.v3+json'}) do
+      resources :agents, param: :uuid, except: [:new, :create, :edit, :update] do
+        patch :update, on: :member
+        patch on: :collection, action: :bulk_update
+        delete on: :collection, action: :bulk_destroy
+      end
+
+      match '*url', via: :all, to: 'errors#not_found'
+    end
+  end
+
+  scope :api, as: :apiv4, format: false do
+    api_version(:module => 'ApiV4', header: {name: 'Accept', value: 'application/vnd.go.cd.v4+json'}) do
+      resources :agents, param: :uuid, except: [:new, :create, :edit, :update] do
+        patch :update, on: :member
+        patch on: :collection, action: :bulk_update
+        delete on: :collection, action: :bulk_destroy
       end
 
       match '*url', via: :all, to: 'errors#not_found'
@@ -249,7 +298,8 @@ Go::Application.routes.draw do
 
 
   namespace :admin do
-    resources :pipelines, only: [:edit], controller: :pipeline_configs, param: :pipeline_name, as: :pipeline_config
+    resources :pipelines, only: [:edit], controller: :pipeline_configs, param: :pipeline_name, as: :pipeline_config, constraints: {pipeline_name: PIPELINE_NAME_FORMAT}
+    resources :agents, only: [:index], controller: :agents, as: :agents
   end
 
   namespace :api, as: "" do
@@ -258,8 +308,8 @@ Go::Application.routes.draw do
 
       # state
       get 'state/status' => 'server_state#status'
-      post 'state/active' => 'server_state#to_active'
-      post 'state/passive' => 'server_state#to_passive'
+      post 'state/active' => 'server_state#to_active', constraints: HeaderConstraint.new
+      post 'state/passive' => 'server_state#to_passive', constraints: HeaderConstraint.new
 
       # history
       get 'pipelines/:pipeline_name/history/(:offset)' => 'pipelines#history', constraints: {pipeline_name: PIPELINE_NAME_FORMAT}, defaults: {:offset => '0'}, as: :pipeline_history
@@ -282,34 +332,32 @@ Go::Application.routes.draw do
       get 'config/diff/:from_revision/:to_revision' => 'configuration#config_diff', as: :config_diff_api
 
       # stage api's
-      post 'stages/:id/cancel' => 'stages#cancel', as: :cancel_stage
-      post 'stages/:pipeline_name/:stage_name/cancel' => 'stages#cancel_stage_using_pipeline_stage_name', as: :cancel_stage_using_pipeline_stage_name
+      post 'stages/:id/cancel' => 'stages#cancel', constraints: HeaderConstraint.new, as: :cancel_stage
+      constraints pipeline_name: PIPELINE_NAME_FORMAT, stage_name: STAGE_NAME_FORMAT do
+        post 'stages/:pipeline_name/:stage_name/cancel' => 'stages#cancel_stage_using_pipeline_stage_name', constraints: HeaderConstraint.new, as: :cancel_stage_using_pipeline_stage_name
+      end
 
       # pipeline api's
-      post 'pipelines/:pipeline_name/:action' => 'pipelines#%{action}', constraints: {pipeline_name: PIPELINE_NAME_FORMAT}, as: :api_pipeline_action
-      post 'pipelines/:pipeline_name/pause' => 'pipelines#pause', constraints: {pipeline_name: PIPELINE_NAME_FORMAT}, as: :pause_pipeline
-      post 'pipelines/:pipeline_name/unpause' => 'pipelines#unpause', constraints: {pipeline_name: PIPELINE_NAME_FORMAT}, as: :unpause_pipeline
+      constraints pipeline_name: PIPELINE_NAME_FORMAT do
+        post 'pipelines/:pipeline_name/:action' => 'pipelines#%{action}', :no_layout => true, constraints: HeaderConstraint.new, as: :api_pipeline_action
+        post 'pipelines/:pipeline_name/pause' => 'pipelines#pause', constraints: HeaderConstraint.new, as: :pause_pipeline
+        post 'pipelines/:pipeline_name/unpause' => 'pipelines#unpause', constraints: HeaderConstraint.new, as: :unpause_pipeline
+      end
 
-      post 'material/notify/:post_commit_hook_material_type' => 'materials#notify', as: :material_notify
+      post 'material/notify/:post_commit_hook_material_type' => 'materials#notify', as: :material_notify, constraints: HeaderConstraint.new
 
-      post 'admin/command-repo-cache/reload' => 'commands#reload_cache', as: :admin_command_cache_reload
-
-      post 'admin/start_backup' => 'admin#start_backup', as: :backup_api_url
+      post 'admin/command-repo-cache/reload' => 'commands#reload_cache', as: :admin_command_cache_reload, constraints: HeaderConstraint.new
 
       scope 'admin/feature_toggles' do
         defaults :no_layout => true, :format => :json do
           get "" => "feature_toggles#index", as: :api_admin_feature_toggles
-          post "/:toggle_key" => "feature_toggles#update", constraints: {toggle_key: /[^\/]+/}, as: :api_admin_feature_toggle_update
+          constraints HeaderConstraint.new do
+            post "/:toggle_key" => "feature_toggles#update", constraints: {toggle_key: /[^\/]+/}, as: :api_admin_feature_toggle_update
+          end
         end
       end
 
-      #agents api's
-      get 'agents' => 'agents#index', format: 'json', as: :agents_information
-      post 'agents/edit_agents' => 'agents#edit_agents', as: :api_disable_agent
-      post 'agents/:uuid/:action' => 'agents#%{action}', constraints: {action: /enable|disable|delete/}, as: :agent_action
-
       defaults :format => 'text' do
-        get 'support' => 'server#capture_support_info'
         get 'fanin_trace/:name' => 'fanin_trace#fanin_trace', constraints: {name: PIPELINE_NAME_FORMAT}
         get 'fanin_debug/:name/(:index)' => 'fanin_trace#fanin_debug', constraints: {name: PIPELINE_NAME_FORMAT}, defaults: {:offset => '0'}
         get 'fanin/:name' => 'fanin_trace#fanin', constraints: {name: PIPELINE_NAME_FORMAT}
@@ -317,12 +365,10 @@ Go::Application.routes.draw do
 
       defaults :format => 'json' do
         get 'process_list' => 'process_list#process_list'
+        get 'support' => 'server#capture_support_info'
       end
 
       defaults :format => 'xml' do
-        get 'users.xml' => 'users#index'
-        get 'server.xml' => 'server#info', as: :server
-
         # stage api's
         get 'stages/:id.xml' => 'stages#index', as: :stage
 
@@ -342,33 +388,37 @@ Go::Application.routes.draw do
   namespace :api do
     scope :config do
       namespace :internal do
-        post 'pluggable_task/:plugin_id' => 'pluggable_task#validate', as: :pluggable_task_validation, constraints: { plugin_id: /[\w+\.\-]+/ }
+        constraints HeaderConstraint.new do
+          post 'pluggable_task/:plugin_id' => 'pluggable_task#validate', as: :pluggable_task_validation, constraints: {plugin_id: /[\w+\.\-]+/}
+        end
       end
     end
   end
 
+
   post 'pipelines/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/rerun-jobs' => 'stages#rerun_jobs', as: :rerun_jobs, constraints: STAGE_LOCATOR_CONSTRAINTS
-  post 'pipelines/:pipeline_name/:pipeline_counter/comment' => 'pipelines#update_comment', as: :update_comment, constraints: PIPELINE_LOCATOR_CONSTRAINTS, format: :json
+  constraints HeaderConstraint.new do
+    post 'pipelines/:pipeline_name/:pipeline_counter/comment' => 'pipelines#update_comment', as: :update_comment, constraints: PIPELINE_LOCATOR_CONSTRAINTS, format: :json
+  end
   get 'pipelines/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/(:action)' => 'stages#overview', as: :stage_detail_tab, constraints: STAGE_LOCATOR_CONSTRAINTS
   get "history/stage/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter" => 'stages#history', as: :stage_history, constraints: STAGE_LOCATOR_CONSTRAINTS
   get "config_change/between/:later_md5/and/:earlier_md5" => 'stages#config_change', as: :config_change
 
   get "/run/:pipeline_name/:pipeline_counter/:stage_name", :controller => "null", :action => "null", as: :run_stage, constraints: {:pipeline_name => PIPELINE_NAME_FORMAT, :pipeline_counter => PIPELINE_COUNTER_FORMAT, :stage_name => STAGE_NAME_FORMAT}
 
-  resources :agents, :only =>  [:index], :defaults => {:format => "html"}
+  resources :agents, :only => [:index], :defaults => {:format => "html"}
   post "agents/edit_agents", :controller => 'agents', :action => :edit_agents, as: :edit_agents
-  post "agents/:action" , :controller => 'agents', constraints: {action: /(resource|environment)_selector/}, as: :agent_grouping_data
+  post "agents/:action", :controller => 'agents', constraints: {action: /(resource|environment)_selector/}, as: :agent_grouping_data
 
-  scope 'admin/users', module:'admin' do
+  scope 'admin/users', module: 'admin' do
     defaults :no_layout => true do
       get 'new' => 'users#new', as: :users_new
-      post 'create' =>   'users#create', as: :users_create
+      post 'create' => 'users#create', as: :users_create
       post 'search' => 'users#search', as: :users_search
       post 'roles' => 'users#roles', as: :user_roles
-      delete 'delete_all' => 'users#delete_all', as: :users_delete  #NOT_IN_PRODUCTION don't remove this line, the build will remove this line when packaging the war
     end
-    post 'operate'  => 'users#operate', as: :user_operate
-    get ''=>'users#users', as: :user_listing
+    post 'operate' => 'users#operate', as: :user_operate
+    get '' => 'users#users', as: :user_listing
   end
 
   get "agents/:uuid" => 'agent_details#show', as: :agent_detail

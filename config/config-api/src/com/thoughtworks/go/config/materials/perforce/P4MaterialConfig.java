@@ -1,18 +1,18 @@
-/*************************GO-LICENSE-START*********************************
- * Copyright 2014 ThoughtWorks, Inc.
+/*
+ * Copyright 2016 ThoughtWorks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *************************GO-LICENSE-END***********************************/
+ */
 
 package com.thoughtworks.go.config.materials.perforce;
 
@@ -32,6 +32,8 @@ import java.util.Map;
 
 import static com.thoughtworks.go.util.ExceptionUtils.bomb;
 import static com.thoughtworks.go.util.ExceptionUtils.bombIfNull;
+import static java.lang.String.format;
+import static org.apache.commons.lang.StringUtils.isNotEmpty;
 
 @ConfigTag(value = "p4", label = "Perforce")
 public class P4MaterialConfig extends ScmMaterialConfig implements ParamsAttributeAware, PasswordEncrypter, PasswordAwareMaterial {
@@ -61,6 +63,10 @@ public class P4MaterialConfig extends ScmMaterialConfig implements ParamsAttribu
     public static final String USE_TICKETS = "useTickets";
     private final GoCipher goCipher;
 
+    public P4MaterialConfig() {
+        this(new GoCipher());
+    }
+
     private P4MaterialConfig(GoCipher goCipher) {
         super(TYPE);
         this.goCipher = goCipher;
@@ -83,14 +89,22 @@ public class P4MaterialConfig extends ScmMaterialConfig implements ParamsAttribu
     }
 
     public P4MaterialConfig(String serverAndPort, String userName, String password, Boolean useTickets, String viewStr, GoCipher goCipher, CaseInsensitiveString name,
-                            boolean autoUpdate, Filter filter, String folder) {
-        super(name, filter, folder, autoUpdate, TYPE, new ConfigErrors());
+                            boolean autoUpdate, Filter filter, boolean invertFilter, String folder) {
+        super(name, filter, invertFilter, folder, autoUpdate, TYPE, new ConfigErrors());
         this.serverAndPort = serverAndPort;
         this.goCipher = goCipher;
         setPassword(password);
         this.userName = userName;
         this.useTickets = useTickets;
         setView(viewStr);
+    }
+
+    //for tests only
+    protected P4MaterialConfig(String serverAndPort, String password, String encryptedPassword, GoCipher goCipher) {
+        this(goCipher);
+        this.password = password;
+        this.encryptedPassword = encryptedPassword;
+        this.serverAndPort = serverAndPort;
     }
 
     public GoCipher getGoCipher() {
@@ -112,6 +126,11 @@ public class P4MaterialConfig extends ScmMaterialConfig implements ParamsAttribu
     public String getServerAndPort() {
         return serverAndPort;
     }
+
+    public void setServerAndPort(String serverAndPort) {
+        this.serverAndPort = serverAndPort;
+    }
+
 
     public String getView() {
         return view == null ? null : view.getValue();
@@ -139,6 +158,11 @@ public class P4MaterialConfig extends ScmMaterialConfig implements ParamsAttribu
     }
 
     @Override
+    public void setUrl(String serverAndPort) {
+        this.serverAndPort = serverAndPort;
+    }
+
+    @Override
     protected UrlArgument getUrlArgument() {
         return new UrlArgument(serverAndPort);
     }
@@ -152,6 +176,9 @@ public class P4MaterialConfig extends ScmMaterialConfig implements ParamsAttribu
     public String getUserName() {
         return userName;
     }
+        public void setUserName(String userName) {
+                this.userName = userName;
+            }
 
     @Override
     public String getPassword() {
@@ -162,6 +189,11 @@ public class P4MaterialConfig extends ScmMaterialConfig implements ParamsAttribu
     public void setPassword(String password) {
         resetPassword(password);
     }
+
+    public void setCleartextPassword(String password) {
+        this.password = password;
+    }
+
 
     @Override
     public boolean equals(Object o) {
@@ -204,12 +236,24 @@ public class P4MaterialConfig extends ScmMaterialConfig implements ParamsAttribu
     }
 
     @Override
-    protected void validateConcreteScmMaterial(ValidationContext validationContext) {
-        if (getView().trim().isEmpty()) {
+    public void validateConcreteScmMaterial() {
+        if (getView() == null || getView().trim().isEmpty()) {
             errors.add(VIEW, "P4 view cannot be empty.");
         }
         if (StringUtil.isBlank(getServerAndPort())) {
             errors.add(SERVER_AND_PORT, "P4 port cannot be empty.");
+        }
+        if (isNotEmpty(this.password) && isNotEmpty(this.encryptedPassword)){
+            addError("password", "You may only specify `password` or `encrypted_password`, not both!");
+            addError("encryptedPassword", "You may only specify `password` or `encrypted_password`, not both!");
+        }
+        if(isNotEmpty(this.encryptedPassword)) {
+            try{
+                currentPassword();
+            }catch (Exception e) {
+                addError("encryptedPassword", format("Encrypted password value for P4 material with serverAndPort '%s' is invalid. This usually happens when the cipher text is modified to have an invalid value.",
+                        this.getServerAndPort()));
+            }
         }
     }
 
@@ -254,7 +298,7 @@ public class P4MaterialConfig extends ScmMaterialConfig implements ParamsAttribu
         setUseTickets("true".equals(map.get(USE_TICKETS)));
     }
 
-    private void setView(String viewStr) {
+    public void setView(String viewStr) {
         this.view = new P4MaterialViewConfig(viewStr);
     }
 
@@ -285,7 +329,7 @@ public class P4MaterialConfig extends ScmMaterialConfig implements ParamsAttribu
     public String currentPassword() {
         try {
             return StringUtil.isBlank(encryptedPassword) ? null : this.goCipher.decrypt(encryptedPassword);
-        } catch (InvalidCipherTextException e) {
+        } catch (Exception e) {
             throw new RuntimeException("Could not decrypt the password to get the real password", e);
         }
     }
@@ -293,6 +337,10 @@ public class P4MaterialConfig extends ScmMaterialConfig implements ParamsAttribu
     @Override
     public String getEncryptedPassword() {
         return encryptedPassword;
+    }
+
+    public void setEncryptedPassword(String encryptedPassword) {
+        this.encryptedPassword = encryptedPassword;
     }
 
     private String p4RepoId() {

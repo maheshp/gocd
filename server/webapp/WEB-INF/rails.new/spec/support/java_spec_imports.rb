@@ -19,6 +19,7 @@ module JavaSpecImports
   java_import java.util.ArrayList unless defined? ArrayList
   java_import java.util.Arrays unless defined? Arrays
   java_import java.util.HashMap unless defined? HashMap
+  java_import java.util.LinkedHashMap unless defined? LinkedHashMap
   java_import com.thoughtworks.go.helper.ConfigFileFixture unless defined? ConfigFileFixture
   java_import com.thoughtworks.go.config.ConfigMigrator unless defined? ConfigMigrator
   java_import com.thoughtworks.go.helper.AgentInstanceMother unless defined? AgentInstanceMother
@@ -46,8 +47,6 @@ module JavaSpecImports
   java_import com.thoughtworks.go.server.service.UserService unless defined? UserService
   java_import com.thoughtworks.go.server.service.AdminService unless defined? AdminService
   java_import com.thoughtworks.go.presentation.TriStateSelection unless defined? TriStateSelection
-  java_import com.thoughtworks.go.config.materials.Filter unless defined? Filter
-  java_import com.thoughtworks.go.config.materials.IgnoredFiles unless defined? IgnoredFiles
   java_import com.thoughtworks.go.server.domain.Username unless defined? Username
   java_import com.thoughtworks.go.config.materials.AbstractMaterial unless defined? AbstractMaterial
   java_import com.thoughtworks.go.config.materials.AbstractMaterialConfig unless defined? AbstractMaterialConfig
@@ -106,4 +105,9 @@ module JavaSpecImports
   java_import com.thoughtworks.go.domain.TaskViewStub unless defined? TaskViewStub
   java_import com.thoughtworks.go.server.service.StubPackageDefinitionService unless defined? StubPackageDefinitionService
   java_import com.thoughtworks.go.server.domain.helper.FeatureToggleMother unless defined? FeatureToggleMother
+  java_import com.thoughtworks.go.helper.EnvironmentVariablesConfigMother unless defined? EnvironmentVariablesConfigMother
+  java_import com.thoughtworks.go.config.validation.FilePathTypeValidator unless defined? FilePathTypeValidator
+  java_import com.thoughtworks.go.domain.GoVersion unless defined? GoVersion
+  java_import com.thoughtworks.go.domain.VersionInfo unless defined? VersionInfo
+  java_import com.thoughtworks.go.server.service.CheckConnectionSubprocessExecutionContext unless defined? CheckConnectionSubprocessExecutionContext
 end

@@ -79,7 +79,7 @@ public class AuthenticationRequestProcessor implements GoPluginApiRequestProcess
             Authentication authentication = getAuthenticationToken(goUserPrincipal);
 
             userService.addUserIfDoesNotExist(UserHelper.getUserName(authentication));
-            getSecurityContext().setAuthentication(authentication);
+//            getSecurityContext().setAuthentication(authentication);
             return new DefaultGoApiResponse(200);
         } catch (Exception e) {
             LOGGER.error("Error occurred while authenticating user", e);

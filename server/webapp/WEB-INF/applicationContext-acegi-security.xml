@@ -50,7 +50,7 @@
                 /cctray.xml=performanceLoggingFilter,modeAwareFilter,i18nlocaleResolver,httpSessionContextIntegrationFilter,apiSessionFilter,goLogoutFilter,removeAdminPermissionFilter,casAuthProcessingFilter,oauthProcessingFilter,basicProcessingFilter,authenticationProcessingFilter,userEnabledCheckFilter,anonymousProcessingFilter,basicAuthenticationAccessDenied,filterInvocationInterceptor,flashLoader,urlRewriter
                 /api/**=performanceLoggingFilter,modeAwareFilter,i18nlocaleResolver,httpSessionContextIntegrationFilter,apiSessionFilter,goLogoutFilter,removeAdminPermissionFilter,casAuthProcessingFilter,oauthProcessingFilter,basicProcessingFilter,authenticationProcessingFilter,userEnabledCheckFilter,anonymousProcessingFilter,basicAuthenticationAccessDenied,filterInvocationInterceptor,flashLoader,urlRewriter
                 /files/**=performanceLoggingFilter,modeAwareFilter,artifactSizeEnforcementFilter,i18nlocaleResolver,httpSessionContextIntegrationFilter,goLogoutFilter,removeAdminPermissionFilter,casAuthProcessingFilter,oauthProcessingFilter,basicProcessingFilter,authenticationProcessingFilter,userEnabledCheckFilter,anonymousProcessingFilter,cruiseLoginOrBasicAuthentication,filterInvocationInterceptor,flashLoader,urlRewriter
-                /**=performanceLoggingFilter,modeAwareFilter,i18nlocaleResolver,httpSessionContextIntegrationFilter,goLogoutFilter,removeAdminPermissionFilter,casAuthProcessingFilter,oauthProcessingFilter,basicProcessingFilter,authenticationProcessingFilter,userEnabledCheckFilter,anonymousProcessingFilter,cruiseLoginOrBasicAuthentication,filterInvocationInterceptor,flashLoader,urlRewriter
+                /**=performanceLoggingFilter,modeAwareFilter,i18nlocaleResolver,httpSessionContextIntegrationFilter,goLogoutFilter,removeAdminPermissionFilter,casAuthProcessingFilter,oauthProcessingFilter,basicProcessingFilter,authenticationProcessingFilter,preAuthFilter,userEnabledCheckFilter,anonymousProcessingFilter,cruiseLoginOrBasicAuthentication,filterInvocationInterceptor,flashLoader,urlRewriter
             </value>
         </property>
     </bean>
@@ -85,6 +85,30 @@
         </constructor-arg>
     </bean>
 
+    <bean id="preAuthFilter" class="com.thoughtworks.go.server.security.PreAuthFilter"
+          p:authenticationManager-ref="preAuthManager"/>
+
+    <bean id="preAuthManager" class="org.springframework.security.providers.ProviderManager">
+        <property name="providers">
+            <list>
+                <ref bean="preAuthProvider"/>
+            </list>
+        </property>
+    </bean>
+    
+    <bean id="preAuthProvider" class="org.springframework.security.providers.preauth.PreAuthenticatedAuthenticationProvider">
+        <property name="preAuthenticatedUserDetailsService">
+            <bean id="userDetailsService" class="com.thoughtworks.go.server.security.PreAuthUserDetailsService">
+                <constructor-arg index="0">
+                    <bean class="com.thoughtworks.go.server.service.UserService" autowire="autodetect"/>
+                </constructor-arg>
+                <constructor-arg index="1">
+                    <bean class="com.thoughtworks.go.server.security.AuthorityGranter" autowire="autodetect"/>
+                </constructor-arg>
+            </bean>
+        </property>
+    </bean>
+    
     <bean id="authenticationProcessingFilter" class="com.thoughtworks.go.server.security.AuthenticationProcessingFilter"
           p:authenticationManager-ref="goAuthenticationManager"
           p:authenticationFailureUrl="/auth/login?login_error=1"
@@ -124,6 +148,7 @@
                         <bean class="com.thoughtworks.go.server.security.providers.PluginAuthenticationProvider" autowire="autodetect"/>
                     </constructor-arg>
                 </bean>
+                <ref bean="preAuthProvider"/>
                 <bean class="org.springframework.security.providers.anonymous.AnonymousAuthenticationProvider" p:key="anonymousKey"/>
             </list>
         </property>

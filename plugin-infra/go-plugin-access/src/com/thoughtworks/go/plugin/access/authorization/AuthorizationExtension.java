@@ -203,6 +203,21 @@ public class AuthorizationExtension extends AbstractExtension {
     }
 
 
+//    TODO: think of a better name for this endpoint
+    public AuthenticationResponse authorize(String pluginId, final Map<String,String> credentials, List<SecurityAuthConfig> authConfigs) {
+        return pluginRequestHelper.submitRequest(pluginId, REQUEST_AUTHENTICATE_USER, new DefaultPluginInteractionCallback<AuthenticationResponse>() {
+            @Override
+            public String requestBody(String resolvedExtensionVersion) {
+                return null;
+            }
+
+            @Override
+            public AuthenticationResponse onSuccess(String responseBody, String resolvedExtensionVersion) {
+                return null;
+            }
+        });
+    }
+
     public AuthorizationMessageConverter getMessageConverter(String version) {
         return messageHandlerMap.get(version);
     }

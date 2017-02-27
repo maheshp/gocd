@@ -20,9 +20,12 @@ import com.thoughtworks.go.config.SecurityAuthConfig;
 import com.thoughtworks.go.config.SecurityConfig;
 import com.thoughtworks.go.plugin.access.authorization.AuthorizationExtension;
 import com.thoughtworks.go.server.service.GoConfigService;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.springframework.security.Authentication;
 import org.springframework.security.AuthenticationManager;
+import org.springframework.security.context.SecurityContextHolder;
 import org.springframework.security.providers.preauth.PreAuthenticatedAuthenticationToken;
 
 import javax.servlet.FilterChain;
@@ -65,18 +68,35 @@ public class WebBasedPluginAuthenticationFilterTest {
         filter = new WebBasedPluginAuthenticationFilter(authorizationExtension, configService);
         securityConfig = new SecurityConfig();
 
+        filter.setAuthenticationManager(authenticationManager);
         stub(configService.security()).toReturn(securityConfig);
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        SecurityContextHolder.getContext().setAuthentication(null);
     }
 
     @Test
     public void shouldAttemptAuthenticationOnlyForPluginAuthRequests() throws IOException, ServletException {
         when(request.getRequestURI()).thenReturn("/go/plugin/github.oauth/access");
 
+        filter.doFilter(request, response, filterChain);
+
+        verify(authenticationManager).authenticate(any(PreAuthenticatedAuthenticationToken.class));
+    }
+
+    @Test
+    public void shouldIgnoreAuthenticationIfUserIsAlreadyAuthenticated() throws IOException, ServletException {
+        when(request.getRequestURI()).thenReturn("/go/plugin/github.oauth/access");
+        SecurityContextHolder.getContext().setAuthentication(new PreAuthenticatedAuthenticationToken("prin", "creds"));
+
         filter.setAuthenticationManager(authenticationManager);
 
         filter.doFilter(request, response, filterChain);
 
-        verify(authenticationManager).authenticate(any(PreAuthenticatedAuthenticationToken.class));
+        verifyZeroInteractions(authenticationManager);
+        verify(filterChain).doFilter(request, response);
     }
 
     @Test
@@ -89,11 +109,6 @@ public class WebBasedPluginAuthenticationFilterTest {
 
         verifyZeroInteractions(authenticationManager);
         verify(filterChain).doFilter(request, response);
-    }
-
-    @Test
-    public void shouldGetAnonymousUserAsPreAuthenticatedPrinciple() {
-        assertThat(filter.getPreAuthenticatedPrincipal(request), is("ANONYMOUS"));
     }
 
     @Test
@@ -110,5 +125,25 @@ public class WebBasedPluginAuthenticationFilterTest {
         Map<String, String> credentials = (Map<String, String>) filter.getPreAuthenticatedCredentials(request);
 
         assertThat(credentials, hasEntry("access_token", "token"));
+    }
+
+    @Test
+    public void shouldAuthenticateUsersWithCredentials() throws IOException, ServletException {
+        PreAuthenticatedAuthenticationToken token = mock(PreAuthenticatedAuthenticationToken.class);
+        HashMap<String, String[]> params = new HashMap<>();
+        params.put("code", new String[]{"some_auth_code"});
+        SecurityAuthConfig githubAuthConfig = new SecurityAuthConfig("github", "github.oauth");
+        securityConfig.securityAuthConfigs().add(githubAuthConfig);
+
+        when(request.getRequestURI()).thenReturn("/go/plugin/github.oauth/access");
+        when(request.getParameterMap()).thenReturn(params);
+        when(authorizationExtension.grantAccess("github.oauth", Collections.singletonMap("code", "some_auth_code"),
+                Collections.singletonList(githubAuthConfig))).thenReturn(Collections.singletonMap("access_token", "token"));
+        when(authenticationManager.authenticate(any(PreAuthenticatedAuthenticationToken.class))).thenReturn(token);
+
+        filter.doFilter(request, response, filterChain);
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        assertThat(authentication, is(token));
     }
 }

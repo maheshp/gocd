@@ -20,6 +20,11 @@ import com.thoughtworks.go.config.SecurityAuthConfig;
 import com.thoughtworks.go.plugin.access.authorization.AuthorizationExtension;
 import com.thoughtworks.go.server.service.GoConfigService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.Authentication;
+import org.springframework.security.AuthenticationException;
+import org.springframework.security.AuthenticationManager;
+import org.springframework.security.context.SecurityContextHolder;
+import org.springframework.security.providers.preauth.PreAuthenticatedAuthenticationToken;
 import org.springframework.security.ui.preauth.AbstractPreAuthenticatedProcessingFilter;
 
 import javax.servlet.FilterChain;
@@ -38,6 +43,7 @@ public class WebBasedPluginAuthenticationFilter extends AbstractPreAuthenticated
     private static final Pattern GRANT_ACCESS_REQUEST_PATTERN = Pattern.compile("^/go/plugin/([^\\s]+)/access$");
     private final AuthorizationExtension authorizationExtension;
     private final GoConfigService configService;
+    private AuthenticationManager authenticationManager = null;
 
     @Autowired
     public WebBasedPluginAuthenticationFilter(AuthorizationExtension authorizationExtension, GoConfigService configService) {
@@ -47,15 +53,12 @@ public class WebBasedPluginAuthenticationFilter extends AbstractPreAuthenticated
 
     @Override
     protected Object getPreAuthenticatedPrincipal(HttpServletRequest request) {
-        return "ANONYMOUS";
+        return null;
     }
 
     @Override
     protected Object getPreAuthenticatedCredentials(HttpServletRequest request) {
-        Matcher matcher = GRANT_ACCESS_REQUEST_PATTERN.matcher(request.getRequestURI());
-        matcher.matches();
-
-        String pluginId = matcher.group(1);
+        String pluginId = pluginId(request);
         List<SecurityAuthConfig> authConfigs = configService.security().securityAuthConfigs().findByPluginId(pluginId);
 
         return authorizationExtension.grantAccess(pluginId, getParameterMap(request), authConfigs);
@@ -69,14 +72,40 @@ public class WebBasedPluginAuthenticationFilter extends AbstractPreAuthenticated
     @Override
     public void doFilterHttp(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws IOException, ServletException {
         if (requiresAuthentication(request)) {
-            super.doFilterHttp(request, response, filterChain);
-        } else {
-            filterChain.doFilter(request, response);
+            doAuthenticate(request, response);
+        }
+
+        filterChain.doFilter(request, response);
+    }
+
+    private void doAuthenticate(HttpServletRequest request, HttpServletResponse response) {
+        Object credentials = getPreAuthenticatedCredentials(request);
+
+        try {
+            PreAuthenticatedAuthenticationToken authRequest = new PreAuthenticatedAuthenticationToken(null, credentials);
+            authRequest.setDetails(pluginId(request));
+            Authentication authResult = authenticationManager.authenticate(authRequest);
+            successfulAuthentication(request, response, authResult);
+        } catch (AuthenticationException failed) {
+            unsuccessfulAuthentication(request, response, failed);
         }
     }
 
+    @Override
+    public void setAuthenticationManager(AuthenticationManager authenticationManager) {
+        this.authenticationManager = authenticationManager;
+    }
+
     private boolean requiresAuthentication(HttpServletRequest request) {
-        return GRANT_ACCESS_REQUEST_PATTERN.matcher(request.getRequestURI()).matches();
+        return SecurityContextHolder.getContext().getAuthentication() == null &&
+                GRANT_ACCESS_REQUEST_PATTERN.matcher(request.getRequestURI()).matches();
+    }
+
+    private String pluginId(HttpServletRequest request) {
+        Matcher matcher = GRANT_ACCESS_REQUEST_PATTERN.matcher(request.getRequestURI());
+        matcher.matches();
+
+        return matcher.group(1);
     }
 
 //    TODO: see if this can be refactored

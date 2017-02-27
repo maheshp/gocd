@@ -187,6 +187,21 @@ public class AuthorizationExtension extends AbstractExtension {
         });
     }
 
+    //    TODO
+    public Map<String, String> grantAccess(String pluginId, final Map<String, String> requestParams, List<SecurityAuthConfig> authConfigs) {
+        return pluginRequestHelper.submitRequest(pluginId, REQUEST_GRANT_ACCESS, new DefaultPluginInteractionCallback<Map<String, String>>() {
+            @Override
+            public String requestBody(String resolvedExtensionVersion) {
+                return null;
+            }
+
+            @Override
+            public Map<String, String> onSuccess(String responseBody, String resolvedExtensionVersion) {
+                return null;
+            }
+        });
+    }
+
 
     public AuthorizationMessageConverter getMessageConverter(String version) {
         return messageHandlerMap.get(version);

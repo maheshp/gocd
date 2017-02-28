@@ -68,7 +68,7 @@ public class PreAuthenticatedAuthenticationProvider extends org.springframework.
         String pluginId = preAuthToken.getPluginId();
         Map<String, String> credentials = preAuthToken.getCredentials();
 
-        AuthenticationResponse authenticationResponse = authorizationExtension.authorize(pluginId, credentials, null);
+        AuthenticationResponse authenticationResponse = authorizationExtension.userDetails(pluginId, credentials, null);
 
         UserDetails userDetails = getUserDetails(authenticationResponse.getUser());
 

@@ -60,7 +60,7 @@ public class PreAuthenticatedRequestsProcessingFilter extends AbstractPreAuthent
         String pluginId = pluginId(request);
         List<SecurityAuthConfig> authConfigs = configService.security().securityAuthConfigs().findByPluginId(pluginId);
 
-        return authorizationExtension.grantAccess(pluginId, getParameterMap(request), authConfigs);
+        return authorizationExtension.grantIdentityProviderAccess(pluginId, getParameterMap(request), authConfigs);
     }
 
     @Override

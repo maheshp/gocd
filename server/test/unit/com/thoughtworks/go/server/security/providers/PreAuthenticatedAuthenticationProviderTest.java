@@ -26,7 +26,6 @@ import com.thoughtworks.go.server.security.tokens.PreAuthenticatedAuthentication
 import com.thoughtworks.go.server.security.userdetail.GoUserPrinciple;
 import com.thoughtworks.go.server.service.PluginRoleService;
 import com.thoughtworks.go.server.service.UserService;
-import org.apache.xmlbeans.impl.xb.xsdschema.Attribute;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -36,7 +35,6 @@ import org.springframework.security.Authentication;
 import org.springframework.security.BadCredentialsException;
 import org.springframework.security.GrantedAuthority;
 import org.springframework.security.providers.UsernamePasswordAuthenticationToken;
-import org.springframework.security.userdetails.UserDetails;
 
 import java.util.*;
 
@@ -74,7 +72,7 @@ public class PreAuthenticatedAuthenticationProviderTest {
         authenticationProvider = new PreAuthenticatedAuthenticationProvider(authorizationExtension, pluginRoleService, userService, authorityGranter);
         AuthenticationResponse authenticationResponse = new AuthenticationResponse(user, Arrays.asList("admin"));
 
-        stub(authorizationExtension.authorize(any(String.class), any(Map.class), any(List.class))).toReturn(authenticationResponse);
+        stub(authorizationExtension.userDetails(any(String.class), any(Map.class), any(List.class))).toReturn(authenticationResponse);
         stub(authorityGranter.authorities(anyString())).toReturn(authorities);
     }
 
@@ -85,7 +83,7 @@ public class PreAuthenticatedAuthenticationProviderTest {
 
         authenticationProvider.authenticate(authenticationToken);
 
-        verify(authorizationExtension).authorize(pluginId, credentials, null);
+        verify(authorizationExtension).userDetails(pluginId, credentials, null);
     }
 
     @Test
@@ -146,7 +144,7 @@ public class PreAuthenticatedAuthenticationProviderTest {
         PreAuthenticatedAuthenticationToken authenticationToken = new PreAuthenticatedAuthenticationToken(null, credentials, pluginId);
         AuthenticationResponse authenticationResponse = new AuthenticationResponse(new User("username", null, "email"), Arrays.asList("admin"));
 
-        when(authorizationExtension.authorize(any(String.class), any(Map.class), any(List.class))).thenReturn(authenticationResponse);
+        when(authorizationExtension.userDetails(any(String.class), any(Map.class), any(List.class))).thenReturn(authenticationResponse);
 
         PreAuthenticatedAuthenticationToken authenticate = (PreAuthenticatedAuthenticationToken) authenticationProvider.authenticate(authenticationToken);
 

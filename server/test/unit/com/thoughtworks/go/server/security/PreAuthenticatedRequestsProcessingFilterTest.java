@@ -117,7 +117,7 @@ public class PreAuthenticatedRequestsProcessingFilterTest {
 
         when(request.getRequestURI()).thenReturn("/go/plugin/github.oauth/access");
         when(request.getParameterMap()).thenReturn(params);
-        when(authorizationExtension.grantAccess("github.oauth", Collections.singletonMap("code", "some_auth_code"), Collections.singletonList(githubAuthConfig))).thenReturn(Collections.singletonMap("access_token", "token"));
+        when(authorizationExtension.grantIdentityProviderAccess("github.oauth", Collections.singletonMap("code", "some_auth_code"), Collections.singletonList(githubAuthConfig))).thenReturn(Collections.singletonMap("access_token", "token"));
 
         Map<String, String> credentials = filter.getPreAuthenticatedCredentials(request);
 
@@ -134,7 +134,7 @@ public class PreAuthenticatedRequestsProcessingFilterTest {
 
         when(request.getRequestURI()).thenReturn("/go/plugin/github.oauth/access");
         when(request.getParameterMap()).thenReturn(params);
-        when(authorizationExtension.grantAccess("github.oauth", Collections.singletonMap("code", "some_auth_code"),
+        when(authorizationExtension.grantIdentityProviderAccess("github.oauth", Collections.singletonMap("code", "some_auth_code"),
                 Collections.singletonList(githubAuthConfig))).thenReturn(Collections.singletonMap("access_token", "token"));
         when(authenticationManager.authenticate(any(PreAuthenticatedAuthenticationToken.class))).thenReturn(token);
 

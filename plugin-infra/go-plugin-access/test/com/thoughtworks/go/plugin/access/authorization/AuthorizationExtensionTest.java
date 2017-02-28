@@ -46,6 +46,7 @@ import org.skyscreamer.jsonassert.JSONAssert;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static com.thoughtworks.go.plugin.access.authorization.AuthorizationPluginConstants.*;
 import static com.thoughtworks.go.plugin.api.response.DefaultGoPluginApiResponse.SUCCESS_RESPONSE_CODE;
@@ -53,6 +54,7 @@ import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.*;
 import static org.mockito.MockitoAnnotations.initMocks;
@@ -296,7 +298,7 @@ public class AuthorizationExtensionTest {
         assertThat(users, hasSize(1));
         assertThat(users, hasItem(new User("bob", "Bob", "bob@example.com")));
     }
-
+    
     private void assertRequest(GoPluginApiRequest goPluginApiRequest, String extensionName, String version, String requestName, String requestBody) throws JSONException {
         Assert.assertThat(goPluginApiRequest.extension(), Is.is(extensionName));
         Assert.assertThat(goPluginApiRequest.extensionVersion(), Is.is(version));

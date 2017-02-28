@@ -17,6 +17,7 @@
 package com.thoughtworks.go.plugin.access.authorization;
 
 import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.thoughtworks.go.config.PluginRoleConfig;
 import com.thoughtworks.go.config.SecurityAuthConfig;
 import com.thoughtworks.go.plugin.access.authentication.models.User;
@@ -29,6 +30,7 @@ import com.thoughtworks.go.plugin.api.response.validation.ValidationResult;
 import org.apache.commons.collections.map.HashedMap;
 import org.apache.commons.lang.StringUtils;
 
+import java.lang.reflect.Type;
 import java.util.*;
 
 public class AuthorizationMessageConverterV1 implements AuthorizationMessageConverter {
@@ -164,6 +166,31 @@ public class AuthorizationMessageConverterV1 implements AuthorizationMessageConv
             list.add(e);
         }
         return GSON.toJson(list);
+    }
+
+    @Override
+    public String grantAccessRequestBody(List<SecurityAuthConfig> authConfigs) {
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put("profiles", getAuthConfigProfiles(authConfigs));
+
+        return GSON.toJson(requestMap);
+    }
+
+    @Override
+    public Map<String, String> getCredentials(String responseBody) {
+        Type type = new TypeToken<Map<String, String>>() {
+        }.getType();
+
+        return GSON.fromJson(responseBody, type);
+    }
+
+    @Override
+    public String userDetailsRequestBody(Map<String, String> credentials, List<SecurityAuthConfig> authConfigs) {
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put("credentials", credentials);
+        requestMap.put("profiles", getAuthConfigProfiles(authConfigs));
+
+        return  GSON.toJson(requestMap);
     }
 
     private String getTemplateFromResponse(String responseBody, String message) {

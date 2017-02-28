@@ -187,33 +187,35 @@ public class AuthorizationExtension extends AbstractExtension {
         });
     }
 
-    //    TODO
-    public Map<String, String> grantAccess(String pluginId, final Map<String, String> requestParams, List<SecurityAuthConfig> authConfigs) {
-        return pluginRequestHelper.submitRequest(pluginId, REQUEST_GRANT_ACCESS, new DefaultPluginInteractionCallback<Map<String, String>>() {
+    public Map<String, String> grantIdentityProviderAccess(String pluginId, final Map<String, String> requestParams, List<SecurityAuthConfig> authConfigs) {
+        return pluginRequestHelper.submitRequest(pluginId, REQUEST_IDENTITY_PROVIDER_ACCESS, new DefaultPluginInteractionCallback<Map<String, String>>() {
             @Override
             public String requestBody(String resolvedExtensionVersion) {
-                return null;
+                return getMessageConverter(resolvedExtensionVersion).grantAccessRequestBody(authConfigs);
+            }
+
+            @Override
+            public Map<String, String> requestParams(String resolvedExtensionVersion) {
+                return requestParams;
             }
 
             @Override
             public Map<String, String> onSuccess(String responseBody, String resolvedExtensionVersion) {
-                return null;
+                return getMessageConverter(resolvedExtensionVersion).getCredentials(responseBody);
             }
         });
     }
 
-
-//    TODO: think of a better name for this endpoint
-    public AuthenticationResponse authorize(String pluginId, final Map<String,String> credentials, List<SecurityAuthConfig> authConfigs) {
-        return pluginRequestHelper.submitRequest(pluginId, REQUEST_AUTHENTICATE_USER, new DefaultPluginInteractionCallback<AuthenticationResponse>() {
+    public AuthenticationResponse userDetails(String pluginId, final Map<String, String> credentials, List<SecurityAuthConfig> authConfigs) {
+        return pluginRequestHelper.submitRequest(pluginId, REQUEST_USER_PROFILE_AND_ROLES, new DefaultPluginInteractionCallback<AuthenticationResponse>() {
             @Override
             public String requestBody(String resolvedExtensionVersion) {
-                return null;
+                return getMessageConverter(resolvedExtensionVersion).userDetailsRequestBody(credentials, authConfigs);
             }
 
             @Override
             public AuthenticationResponse onSuccess(String responseBody, String resolvedExtensionVersion) {
-                return null;
+                return getMessageConverter(resolvedExtensionVersion).getAuthenticatedUserFromResponseBody(responseBody);
             }
         });
     }

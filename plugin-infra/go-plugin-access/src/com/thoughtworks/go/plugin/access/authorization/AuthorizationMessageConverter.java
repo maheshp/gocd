@@ -60,4 +60,10 @@ public interface AuthorizationMessageConverter {
     String processGetRoleConfigsRequest(String requestBody);
 
     String getProcessRoleConfigsResponseBody(List<PluginRoleConfig> roles);
+
+    String grantAccessRequestBody(List<SecurityAuthConfig> authConfigs);
+
+    Map<String,String> getCredentials(String responseBody);
+
+    String userDetailsRequestBody(Map<String, String> credentials, List<SecurityAuthConfig> authConfigs);
 }

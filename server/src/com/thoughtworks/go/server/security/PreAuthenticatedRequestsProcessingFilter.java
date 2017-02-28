@@ -18,13 +18,13 @@ package com.thoughtworks.go.server.security;
 
 import com.thoughtworks.go.config.SecurityAuthConfig;
 import com.thoughtworks.go.plugin.access.authorization.AuthorizationExtension;
+import com.thoughtworks.go.server.security.tokens.PreAuthenticatedAuthenticationToken;
 import com.thoughtworks.go.server.service.GoConfigService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.Authentication;
 import org.springframework.security.AuthenticationException;
 import org.springframework.security.AuthenticationManager;
 import org.springframework.security.context.SecurityContextHolder;
-import org.springframework.security.providers.preauth.PreAuthenticatedAuthenticationToken;
 import org.springframework.security.ui.preauth.AbstractPreAuthenticatedProcessingFilter;
 
 import javax.servlet.FilterChain;
@@ -38,15 +38,14 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class WebBasedPluginAuthenticationFilter extends AbstractPreAuthenticatedProcessingFilter {
-
+public class PreAuthenticatedRequestsProcessingFilter extends AbstractPreAuthenticatedProcessingFilter {
     private static final Pattern GRANT_ACCESS_REQUEST_PATTERN = Pattern.compile("^/go/plugin/([^\\s]+)/access$");
     private final AuthorizationExtension authorizationExtension;
     private final GoConfigService configService;
     private AuthenticationManager authenticationManager = null;
 
     @Autowired
-    public WebBasedPluginAuthenticationFilter(AuthorizationExtension authorizationExtension, GoConfigService configService) {
+    public PreAuthenticatedRequestsProcessingFilter(AuthorizationExtension authorizationExtension, GoConfigService configService) {
         this.authorizationExtension = authorizationExtension;
         this.configService = configService;
     }
@@ -57,7 +56,7 @@ public class WebBasedPluginAuthenticationFilter extends AbstractPreAuthenticated
     }
 
     @Override
-    protected Object getPreAuthenticatedCredentials(HttpServletRequest request) {
+    protected Map<String, String> getPreAuthenticatedCredentials(HttpServletRequest request) {
         String pluginId = pluginId(request);
         List<SecurityAuthConfig> authConfigs = configService.security().securityAuthConfigs().findByPluginId(pluginId);
 
@@ -79,11 +78,9 @@ public class WebBasedPluginAuthenticationFilter extends AbstractPreAuthenticated
     }
 
     private void doAuthenticate(HttpServletRequest request, HttpServletResponse response) {
-        Object credentials = getPreAuthenticatedCredentials(request);
-
         try {
-            PreAuthenticatedAuthenticationToken authRequest = new PreAuthenticatedAuthenticationToken(null, credentials);
-            authRequest.setDetails(pluginId(request));
+            PreAuthenticatedAuthenticationToken authRequest =
+                    new PreAuthenticatedAuthenticationToken(null, getPreAuthenticatedCredentials(request), pluginId(request));
             Authentication authResult = authenticationManager.authenticate(authRequest);
             successfulAuthentication(request, response, authResult);
         } catch (AuthenticationException failed) {
@@ -108,7 +105,7 @@ public class WebBasedPluginAuthenticationFilter extends AbstractPreAuthenticated
         return matcher.group(1);
     }
 
-//    TODO: see if this can be refactored
+    //    TODO: see if this can be refactored
     private Map<String, String> getParameterMap(HttpServletRequest request) {
         Map<String, String[]> springParameterMap = request.getParameterMap();
         Map<String, String> pluginParameterMap = new HashMap<>();

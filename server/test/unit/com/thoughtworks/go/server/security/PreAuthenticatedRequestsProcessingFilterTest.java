@@ -19,6 +19,7 @@ package com.thoughtworks.go.server.security;
 import com.thoughtworks.go.config.SecurityAuthConfig;
 import com.thoughtworks.go.config.SecurityConfig;
 import com.thoughtworks.go.plugin.access.authorization.AuthorizationExtension;
+import com.thoughtworks.go.server.security.tokens.PreAuthenticatedAuthenticationToken;
 import com.thoughtworks.go.server.service.GoConfigService;
 import org.junit.After;
 import org.junit.Before;
@@ -26,33 +27,29 @@ import org.junit.Test;
 import org.springframework.security.Authentication;
 import org.springframework.security.AuthenticationManager;
 import org.springframework.security.context.SecurityContextHolder;
-import org.springframework.security.providers.preauth.PreAuthenticatedAuthenticationToken;
 
 import javax.servlet.FilterChain;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.*;
 
-public class WebBasedPluginAuthenticationFilterTest {
+public class PreAuthenticatedRequestsProcessingFilterTest {
 
     private HttpServletRequest request;
     private HttpServletResponse response;
     private FilterChain filterChain;
     private AuthenticationManager authenticationManager;
-    private WebBasedPluginAuthenticationFilter filter;
+    private PreAuthenticatedRequestsProcessingFilter filter;
     private AuthorizationExtension authorizationExtension;
     private GoConfigService configService;
     private SecurityConfig securityConfig;
@@ -65,7 +62,7 @@ public class WebBasedPluginAuthenticationFilterTest {
         authenticationManager = mock(AuthenticationManager.class);
         authorizationExtension = mock(AuthorizationExtension.class);
         configService = mock(GoConfigService.class);
-        filter = new WebBasedPluginAuthenticationFilter(authorizationExtension, configService);
+        filter = new PreAuthenticatedRequestsProcessingFilter(authorizationExtension, configService);
         securityConfig = new SecurityConfig();
 
         filter.setAuthenticationManager(authenticationManager);
@@ -89,7 +86,7 @@ public class WebBasedPluginAuthenticationFilterTest {
     @Test
     public void shouldIgnoreAuthenticationIfUserIsAlreadyAuthenticated() throws IOException, ServletException {
         when(request.getRequestURI()).thenReturn("/go/plugin/github.oauth/access");
-        SecurityContextHolder.getContext().setAuthentication(new PreAuthenticatedAuthenticationToken("prin", "creds"));
+        SecurityContextHolder.getContext().setAuthentication(new PreAuthenticatedAuthenticationToken(null, null, null));
 
         filter.setAuthenticationManager(authenticationManager);
 
@@ -122,7 +119,7 @@ public class WebBasedPluginAuthenticationFilterTest {
         when(request.getParameterMap()).thenReturn(params);
         when(authorizationExtension.grantAccess("github.oauth", Collections.singletonMap("code", "some_auth_code"), Collections.singletonList(githubAuthConfig))).thenReturn(Collections.singletonMap("access_token", "token"));
 
-        Map<String, String> credentials = (Map<String, String>) filter.getPreAuthenticatedCredentials(request);
+        Map<String, String> credentials = filter.getPreAuthenticatedCredentials(request);
 
         assertThat(credentials, hasEntry("access_token", "token"));
     }

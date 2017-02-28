@@ -21,14 +21,13 @@ import com.thoughtworks.go.plugin.access.authentication.models.User;
 import com.thoughtworks.go.plugin.access.authorization.AuthorizationExtension;
 import com.thoughtworks.go.plugin.access.authorization.models.AuthenticationResponse;
 import com.thoughtworks.go.server.security.AuthorityGranter;
+import com.thoughtworks.go.server.security.tokens.PreAuthenticatedAuthenticationToken;
 import com.thoughtworks.go.server.security.userdetail.GoUserPrinciple;
 import com.thoughtworks.go.server.service.PluginRoleService;
 import com.thoughtworks.go.server.service.UserService;
 import org.springframework.security.Authentication;
 import org.springframework.security.AuthenticationException;
 import org.springframework.security.BadCredentialsException;
-import org.springframework.security.providers.preauth.PreAuthenticatedAuthenticationProvider;
-import org.springframework.security.providers.preauth.PreAuthenticatedAuthenticationToken;
 import org.springframework.security.userdetails.UserDetails;
 
 import java.util.List;
@@ -36,14 +35,14 @@ import java.util.Map;
 
 import static org.apache.commons.lang.StringUtils.isNotBlank;
 
-public class WebPluginAuthenticationProvider extends PreAuthenticatedAuthenticationProvider {
+public class PreAuthenticatedAuthenticationProvider extends org.springframework.security.providers.preauth.PreAuthenticatedAuthenticationProvider {
     private final AuthorizationExtension authorizationExtension;
     private final PluginRoleService pluginRoleService;
     private final UserService userService;
     private final AuthorityGranter authorityGranter;
 
-    public WebPluginAuthenticationProvider(AuthorizationExtension authorizationExtension, PluginRoleService pluginRoleService,
-                                           UserService userService, AuthorityGranter authorityGranter) {
+    public PreAuthenticatedAuthenticationProvider(AuthorizationExtension authorizationExtension, PluginRoleService pluginRoleService,
+                                                  UserService userService, AuthorityGranter authorityGranter) {
         this.authorizationExtension = authorizationExtension;
         this.pluginRoleService = pluginRoleService;
         this.userService = userService;
@@ -60,10 +59,16 @@ public class WebPluginAuthenticationProvider extends PreAuthenticatedAuthenticat
             throw new BadCredentialsException("No pre-authenticated credentials found in request.");
         }
 
-        String pluginId = (String) authentication.getDetails();
-        Map<String, String> credentials = (Map<String, String>) authentication.getCredentials();
+        PreAuthenticatedAuthenticationToken preAuthToken = (PreAuthenticatedAuthenticationToken) authentication;
 
-        AuthenticationResponse authenticationResponse = authenticateWithPlugin(pluginId, credentials);
+        return doAuthenticate(preAuthToken);
+    }
+
+    private Authentication doAuthenticate(PreAuthenticatedAuthenticationToken preAuthToken) {
+        String pluginId = preAuthToken.getPluginId();
+        Map<String, String> credentials = preAuthToken.getCredentials();
+
+        AuthenticationResponse authenticationResponse = authorizationExtension.authorize(pluginId, credentials, null);
 
         UserDetails userDetails = getUserDetails(authenticationResponse.getUser());
 
@@ -72,11 +77,14 @@ public class WebPluginAuthenticationProvider extends PreAuthenticatedAuthenticat
         assignRoles(pluginId, userDetails.getUsername(), authenticationResponse.getRoles());
 
         PreAuthenticatedAuthenticationToken result =
-                new PreAuthenticatedAuthenticationToken(userDetails, authentication.getCredentials(), userDetails.getAuthorities());
-
-        result.setDetails(authentication.getDetails());
+                new PreAuthenticatedAuthenticationToken(userDetails, preAuthToken.getCredentials(), pluginId, userDetails.getAuthorities());
 
         return result;
+    }
+
+    @Override
+    public boolean supports(Class authentication) {
+        return PreAuthenticatedAuthenticationToken.class.isAssignableFrom(authentication);
     }
 
     private void assignRoles(String pluginId, String username, List<String> roles) {
@@ -87,10 +95,6 @@ public class WebPluginAuthenticationProvider extends PreAuthenticatedAuthenticat
         user = ensureDisplayNamePresent(user);
 
         return new GoUserPrinciple(user.getUsername(), user.getDisplayName(), "", true, true, true, true, authorityGranter.authorities(user.getUsername()));
-    }
-
-    private AuthenticationResponse authenticateWithPlugin(String pluginId, Map<String,String> credentials) {
-        return authorizationExtension.authorize(pluginId, credentials, null);
     }
 
     private com.thoughtworks.go.domain.User toDomainUser(User user) {

@@ -233,7 +233,6 @@ public class AuthorizationExtensionTest {
         assertThat(authenticationResponse.getRoles().get(0), is("blackbird"));
     }
 
-
     @Test
     public void shouldTalkToPlugin_To_AuthenticateUserWithEmptyListIfRoleConfigsAreNotProvided() throws Exception {
         String requestBody = "{\n" +
@@ -298,7 +297,7 @@ public class AuthorizationExtensionTest {
         assertThat(users, hasSize(1));
         assertThat(users, hasItem(new User("bob", "Bob", "bob@example.com")));
     }
-    
+
     private void assertRequest(GoPluginApiRequest goPluginApiRequest, String extensionName, String version, String requestName, String requestBody) throws JSONException {
         Assert.assertThat(goPluginApiRequest.extension(), Is.is(extensionName));
         Assert.assertThat(goPluginApiRequest.extensionVersion(), Is.is(version));

@@ -32,6 +32,7 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,7 +61,7 @@ public class PreAuthenticatedRequestsProcessingFilter extends AbstractPreAuthent
         String pluginId = pluginId(request);
         List<SecurityAuthConfig> authConfigs = configService.security().securityAuthConfigs().findByPluginId(pluginId);
 
-        return authorizationExtension.grantIdentityProviderAccess(pluginId, getParameterMap(request), authConfigs);
+        return authorizationExtension.grantIdentityProviderAccess(pluginId, getRequestHeaders(request), getParameterMap(request), authConfigs);
     }
 
     @Override
@@ -118,5 +119,16 @@ public class PreAuthenticatedRequestsProcessingFilter extends AbstractPreAuthent
             }
         }
         return pluginParameterMap;
+    }
+
+    private HashMap<String, String> getRequestHeaders(HttpServletRequest request) {
+        HashMap<String, String> headers = new HashMap<>();
+        Enumeration headerNames = request.getHeaderNames();
+        while (headerNames.hasMoreElements()) {
+            String header = (String) headerNames.nextElement();
+            String value = request.getHeader(header);
+            headers.put(header, value);
+        }
+        return headers;
     }
 }

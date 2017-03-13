@@ -17,6 +17,10 @@
 package com.thoughtworks.go.server.security.providers;
 
 import com.thoughtworks.go.config.CaseInsensitiveString;
+import com.thoughtworks.go.config.PluginRoleConfig;
+import com.thoughtworks.go.config.SecurityAuthConfig;
+import com.thoughtworks.go.config.SecurityConfig;
+import com.thoughtworks.go.domain.config.ConfigurationProperty;
 import com.thoughtworks.go.plugin.access.authentication.models.User;
 import com.thoughtworks.go.plugin.access.authorization.AuthorizationExtension;
 import com.thoughtworks.go.plugin.access.authorization.models.AuthenticationResponse;
@@ -24,6 +28,7 @@ import com.thoughtworks.go.server.security.AuthorityGranter;
 import com.thoughtworks.go.server.security.GoAuthority;
 import com.thoughtworks.go.server.security.tokens.PreAuthenticatedAuthenticationToken;
 import com.thoughtworks.go.server.security.userdetail.GoUserPrinciple;
+import com.thoughtworks.go.server.service.GoConfigService;
 import com.thoughtworks.go.server.service.PluginRoleService;
 import com.thoughtworks.go.server.service.UserService;
 import org.junit.Before;
@@ -57,6 +62,8 @@ public class PreAuthenticatedAuthenticationProviderTest {
 
     @Rule
     public ExpectedException thrown = ExpectedException.none();
+    private GoConfigService goConfigService;
+    private SecurityConfig securityConfig;
 
 
     @Before
@@ -69,21 +76,29 @@ public class PreAuthenticatedAuthenticationProviderTest {
         authorityGranter = mock(AuthorityGranter.class);
         userService = mock(UserService.class);
         pluginRoleService = mock(PluginRoleService.class);
-        authenticationProvider = new PreAuthenticatedAuthenticationProvider(authorizationExtension, pluginRoleService, userService, authorityGranter);
+        goConfigService = mock(GoConfigService.class);
+        authenticationProvider = new PreAuthenticatedAuthenticationProvider(authorizationExtension, pluginRoleService, userService, authorityGranter, goConfigService);
         AuthenticationResponse authenticationResponse = new AuthenticationResponse(user, Arrays.asList("admin"));
 
-        stub(authorizationExtension.userDetails(any(String.class), any(Map.class), any(List.class))).toReturn(authenticationResponse);
+        securityConfig = new SecurityConfig();
+        stub(goConfigService.security()).toReturn(securityConfig);
+        stub(authorizationExtension.authenticateUser(any(String.class), any(Map.class), any(List.class), any(List.class))).toReturn(authenticationResponse);
         stub(authorityGranter.authorities(anyString())).toReturn(authorities);
     }
 
     @Test
-    public void authenticate_shouldAuthorizeUserAgainstTheSpecifiedPlugin() throws Exception {
+    public void authenticate_shouldAuthenticateUserAgainstTheSpecifiedPlugin() throws Exception {
         Map<String, String> credentials = Collections.singletonMap("access_token", "some_token");
+        SecurityAuthConfig githubConfig = new SecurityAuthConfig("github", pluginId);
+        PluginRoleConfig adminRole = new PluginRoleConfig("admin", "github", new ConfigurationProperty());
+
+        securityConfig.securityAuthConfigs().add(githubConfig);
+        securityConfig.addRole(adminRole);
         PreAuthenticatedAuthenticationToken authenticationToken = new PreAuthenticatedAuthenticationToken(null, credentials, pluginId);
 
         authenticationProvider.authenticate(authenticationToken);
 
-        verify(authorizationExtension).userDetails(pluginId, credentials, null);
+        verify(authorizationExtension).authenticateUser(pluginId, credentials, Collections.singletonList(githubConfig), Collections.singletonList(adminRole));
     }
 
     @Test
@@ -144,7 +159,7 @@ public class PreAuthenticatedAuthenticationProviderTest {
         PreAuthenticatedAuthenticationToken authenticationToken = new PreAuthenticatedAuthenticationToken(null, credentials, pluginId);
         AuthenticationResponse authenticationResponse = new AuthenticationResponse(new User("username", null, "email"), Arrays.asList("admin"));
 
-        when(authorizationExtension.userDetails(any(String.class), any(Map.class), any(List.class))).thenReturn(authenticationResponse);
+        when(authorizationExtension.authenticateUser(any(String.class), any(Map.class), any(List.class), any(List.class))).thenReturn(authenticationResponse);
 
         PreAuthenticatedAuthenticationToken authenticate = (PreAuthenticatedAuthenticationToken) authenticationProvider.authenticate(authenticationToken);
 
@@ -168,6 +183,18 @@ public class PreAuthenticatedAuthenticationProviderTest {
         thrown.expectMessage("No pre-authenticated credentials found in request.");
 
         authenticationProvider.authenticate(new PreAuthenticatedAuthenticationToken(null, null, null));
+    }
+
+    @Test
+    public void authenticate_shouldHandleFailedAuthentication() throws Exception {
+        PreAuthenticatedAuthenticationToken authenticationToken = new PreAuthenticatedAuthenticationToken(null, Collections.singletonMap("access_token", "invalid_token"), pluginId);
+        AuthenticationResponse authenticationResponse = new AuthenticationResponse(null, null);
+
+        when(authorizationExtension.authenticateUser(any(String.class), any(Map.class), any(List.class), any(List.class))).thenReturn(authenticationResponse);
+
+        PreAuthenticatedAuthenticationToken authenticate = (PreAuthenticatedAuthenticationToken) authenticationProvider.authenticate(authenticationToken);
+
+        assertNull(authenticate);
     }
 }
 

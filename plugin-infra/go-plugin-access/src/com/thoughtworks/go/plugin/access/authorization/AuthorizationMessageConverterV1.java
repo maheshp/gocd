@@ -152,11 +152,6 @@ public class AuthorizationMessageConverterV1 implements AuthorizationMessageConv
     }
 
     @Override
-    public String processGetRoleConfigsRequest(String requestBody) {
-        return (String) GSON.fromJson(requestBody, Map.class).get("auth_config_id");
-    }
-
-    @Override
     public String getProcessRoleConfigsResponseBody(List<PluginRoleConfig> roles) {
         List<Map> list = new ArrayList<>();
         for (PluginRoleConfig role : roles) {
@@ -171,7 +166,7 @@ public class AuthorizationMessageConverterV1 implements AuthorizationMessageConv
     @Override
     public String grantAccessRequestBody(List<SecurityAuthConfig> authConfigs) {
         Map<String, Object> requestMap = new HashMap<>();
-        requestMap.put("profiles", getAuthConfigProfiles(authConfigs));
+        requestMap.put("auth_configs", getAuthConfigs(authConfigs));
 
         return GSON.toJson(requestMap);
     }
@@ -185,12 +180,13 @@ public class AuthorizationMessageConverterV1 implements AuthorizationMessageConv
     }
 
     @Override
-    public String userDetailsRequestBody(Map<String, String> credentials, List<SecurityAuthConfig> authConfigs) {
+    public String authenticateUserRequestBody(Map<String, String> credentials, List<SecurityAuthConfig> authConfigs, List<PluginRoleConfig> roleConfigs) {
         Map<String, Object> requestMap = new HashMap<>();
-        requestMap.put("credentials", credentials);
-        requestMap.put("profiles", getAuthConfigProfiles(authConfigs));
 
-        return  GSON.toJson(requestMap);
+        requestMap.put("credentials", credentials);
+        requestMap.put("auth_configs", getAuthConfigs(authConfigs));
+        requestMap.put("role_configs", getRoleConfigs(roleConfigs));
+        return GSON.toJson(requestMap);
     }
 
     private String getTemplateFromResponse(String responseBody, String message) {
@@ -200,5 +196,4 @@ public class AuthorizationMessageConverterV1 implements AuthorizationMessageConv
         }
         return template;
     }
-
 }

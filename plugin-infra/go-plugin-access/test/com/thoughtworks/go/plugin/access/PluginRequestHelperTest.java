@@ -54,6 +54,11 @@ public class PluginRequestHelperTest {
                 }
 
                 @Override
+                public Map<String, String> requestHeaders(String resolvedExtensionVersion) {
+                    return null;
+                }
+
+                @Override
                 public Object onSuccess(String responseBody, String resolvedExtensionVersion) {
                     isSuccessInvoked[0] = true;
                     return null;
@@ -85,6 +90,11 @@ public class PluginRequestHelperTest {
             }
 
             @Override
+            public Map<String, String> requestHeaders(String resolvedExtensionVersion) {
+                return null;
+            }
+
+            @Override
             public Object onSuccess(String responseBody, String resolvedExtensionVersion) {
                 isSuccessInvoked[0] = true;
                 return null;
@@ -107,6 +117,11 @@ public class PluginRequestHelperTest {
 
             @Override
             public Map<String, String> requestParams(String resolvedExtensionVersion) {
+                return null;
+            }
+
+            @Override
+            public Map<String, String> requestHeaders(String resolvedExtensionVersion) {
                 return null;
             }
 
@@ -143,6 +158,11 @@ public class PluginRequestHelperTest {
 
             @Override
             public Map<String, String> requestParams(String resolvedExtensionVersion) {
+                return null;
+            }
+
+            @Override
+            public Map<String, String> requestHeaders(String resolvedExtensionVersion) {
                 return null;
             }
 
@@ -184,6 +204,11 @@ public class PluginRequestHelperTest {
                 params.put("p1", "v1");
                 params.put("p2", "v2");
                 return params;
+            }
+
+            @Override
+            public Map<String, String> requestHeaders(String resolvedExtensionVersion) {
+                return null;
             }
 
             @Override

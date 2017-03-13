@@ -17,12 +17,15 @@
 package com.thoughtworks.go.server.security.providers;
 
 import com.thoughtworks.go.config.CaseInsensitiveString;
+import com.thoughtworks.go.config.PluginRoleConfig;
+import com.thoughtworks.go.config.SecurityAuthConfig;
 import com.thoughtworks.go.plugin.access.authentication.models.User;
 import com.thoughtworks.go.plugin.access.authorization.AuthorizationExtension;
 import com.thoughtworks.go.plugin.access.authorization.models.AuthenticationResponse;
 import com.thoughtworks.go.server.security.AuthorityGranter;
 import com.thoughtworks.go.server.security.tokens.PreAuthenticatedAuthenticationToken;
 import com.thoughtworks.go.server.security.userdetail.GoUserPrinciple;
+import com.thoughtworks.go.server.service.GoConfigService;
 import com.thoughtworks.go.server.service.PluginRoleService;
 import com.thoughtworks.go.server.service.UserService;
 import org.springframework.security.Authentication;
@@ -31,7 +34,6 @@ import org.springframework.security.BadCredentialsException;
 import org.springframework.security.userdetails.UserDetails;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.apache.commons.lang.StringUtils.isNotBlank;
 
@@ -40,13 +42,15 @@ public class PreAuthenticatedAuthenticationProvider extends org.springframework.
     private final PluginRoleService pluginRoleService;
     private final UserService userService;
     private final AuthorityGranter authorityGranter;
+    private GoConfigService configService;
 
     public PreAuthenticatedAuthenticationProvider(AuthorizationExtension authorizationExtension, PluginRoleService pluginRoleService,
-                                                  UserService userService, AuthorityGranter authorityGranter) {
+                                                  UserService userService, AuthorityGranter authorityGranter, GoConfigService configService) {
         this.authorizationExtension = authorizationExtension;
         this.pluginRoleService = pluginRoleService;
         this.userService = userService;
         this.authorityGranter = authorityGranter;
+        this.configService = configService;
     }
 
     @Override
@@ -66,15 +70,19 @@ public class PreAuthenticatedAuthenticationProvider extends org.springframework.
 
     private Authentication doAuthenticate(PreAuthenticatedAuthenticationToken preAuthToken) {
         String pluginId = preAuthToken.getPluginId();
-        Map<String, String> credentials = preAuthToken.getCredentials();
 
-        AuthenticationResponse authenticationResponse = authorizationExtension.userDetails(pluginId, credentials, null);
+        AuthenticationResponse response = authorizationExtension.authenticateUser(pluginId, preAuthToken.getCredentials(),
+                authConfigs(pluginId), pluginRoleConfigs(pluginId));
 
-        UserDetails userDetails = getUserDetails(authenticationResponse.getUser());
+        if(authenticationFailed(response)) {
+            return null;
+        }
 
-        userService.addUserIfDoesNotExist(toDomainUser(authenticationResponse.getUser()));
+        UserDetails userDetails = getUserDetails(response.getUser());
 
-        assignRoles(pluginId, userDetails.getUsername(), authenticationResponse.getRoles());
+        userService.addUserIfDoesNotExist(toDomainUser(response.getUser()));
+
+        assignRoles(pluginId, userDetails.getUsername(), response.getRoles());
 
         PreAuthenticatedAuthenticationToken result =
                 new PreAuthenticatedAuthenticationToken(userDetails, preAuthToken.getCredentials(), pluginId, userDetails.getAuthorities());
@@ -85,6 +93,18 @@ public class PreAuthenticatedAuthenticationProvider extends org.springframework.
     @Override
     public boolean supports(Class authentication) {
         return PreAuthenticatedAuthenticationToken.class.isAssignableFrom(authentication);
+    }
+
+    private boolean authenticationFailed(AuthenticationResponse response) {
+        return response.getUser() == null;
+    }
+
+    private List<PluginRoleConfig> pluginRoleConfigs(String pluginId) {
+        return configService.security().getPluginRoles(pluginId);
+    }
+
+    private List<SecurityAuthConfig> authConfigs(String pluginId) {
+        return configService.security().securityAuthConfigs().findByPluginId(pluginId);
     }
 
     private void assignRoles(String pluginId, String username, List<String> roles) {

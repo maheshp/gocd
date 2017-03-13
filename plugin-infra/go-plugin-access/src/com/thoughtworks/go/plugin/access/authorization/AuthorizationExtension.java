@@ -187,7 +187,7 @@ public class AuthorizationExtension extends AbstractExtension {
         });
     }
 
-    public Map<String, String> grantIdentityProviderAccess(String pluginId, final Map<String, String> requestParams, List<SecurityAuthConfig> authConfigs) {
+    public Map<String, String> grantIdentityProviderAccess(String pluginId, Map<String, String> requestHeaders, final Map<String, String> requestParams, List<SecurityAuthConfig> authConfigs) {
         return pluginRequestHelper.submitRequest(pluginId, REQUEST_IDENTITY_PROVIDER_ACCESS, new DefaultPluginInteractionCallback<Map<String, String>>() {
             @Override
             public String requestBody(String resolvedExtensionVersion) {
@@ -200,17 +200,30 @@ public class AuthorizationExtension extends AbstractExtension {
             }
 
             @Override
+            public Map<String, String> requestHeaders(String resolvedExtensionVersion) {
+                return requestHeaders;
+            }
+
+            @Override
             public Map<String, String> onSuccess(String responseBody, String resolvedExtensionVersion) {
                 return getMessageConverter(resolvedExtensionVersion).getCredentials(responseBody);
             }
         });
     }
 
-    public AuthenticationResponse userDetails(String pluginId, final Map<String, String> credentials, List<SecurityAuthConfig> authConfigs) {
-        return pluginRequestHelper.submitRequest(pluginId, REQUEST_USER_PROFILE_AND_ROLES, new DefaultPluginInteractionCallback<AuthenticationResponse>() {
+    public AuthorizationMessageConverter getMessageConverter(String version) {
+        return messageHandlerMap.get(version);
+    }
+
+    public AuthenticationResponse authenticateUser(String pluginId, Map<String, String> credentials, List<SecurityAuthConfig> authConfigs, List<PluginRoleConfig> roleConfigs) {
+        if (authConfigs == null || authConfigs.isEmpty()) {
+            throw new MissingAuthConfigsException(String.format("No AuthConfigs configured for plugin: %s, Plugin would need at-least one auth_config to authenticate user.", pluginId));
+        }
+
+        return pluginRequestHelper.submitRequest(pluginId, REQUEST_AUTHENTICATE_USER, new DefaultPluginInteractionCallback<AuthenticationResponse>() {
             @Override
             public String requestBody(String resolvedExtensionVersion) {
-                return getMessageConverter(resolvedExtensionVersion).userDetailsRequestBody(credentials, authConfigs);
+                return getMessageConverter(resolvedExtensionVersion).authenticateUserRequestBody(credentials, authConfigs, roleConfigs);
             }
 
             @Override
@@ -218,9 +231,5 @@ public class AuthorizationExtension extends AbstractExtension {
                 return getMessageConverter(resolvedExtensionVersion).getAuthenticatedUserFromResponseBody(responseBody);
             }
         });
-    }
-
-    public AuthorizationMessageConverter getMessageConverter(String version) {
-        return messageHandlerMap.get(version);
     }
 }

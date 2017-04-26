@@ -53,22 +53,15 @@ Roles.Role = function (type, data) {
   role.etag   = Mixins.GetterSetter();
   role.errors = ErrorsFromJSON(data);
 
-  role.isPluginRole = function () {
-    return role.type() === 'plugin';
-  };
-
-  role.changeRoleType = function (newType) {
-    if (newType === role.type()) {
-      return role;
-    }
-    return Roles.Types[newType].fromJSON({name: role.name(), attributes: {}});
-  };
-
   Mixins.HasUUID.call(this);
   Validatable.call(this, data);
 
   role.validatePresenceOf('name');
   role.validatePresenceOf('type');
+
+  role.isPluginRole = function () {
+    return role.type() === 'plugin';
+  };
 
   this.toJSON = () => {
     return {
@@ -76,7 +69,6 @@ Roles.Role = function (type, data) {
       name:       role.name(),
       attributes: this._attributesToJSON()
     };
-
   };
 
   CrudMixins.AllOperations.call(this, ['refresh', 'update', 'delete', 'create'], {
@@ -120,6 +112,12 @@ Roles.Role.GoCD = function (data) {
   };
 };
 
+Roles.Role.GoCD.fromJSON = (data = {}) => new Roles.Role.GoCD({
+  name:  data.name,
+  type:  data.type,
+  users: data.attributes.users
+});
+
 Roles.Role.Plugin = function (data) {
   Roles.Role.call(this, "plugin", data);
   this.authConfigId = Stream(s.defaultToIfBlank(data.authConfigId, ''));
@@ -140,12 +138,6 @@ Roles.Role.Plugin.fromJSON = (data = {}) => new Roles.Role.Plugin({
   type:         data.type,
   authConfigId: data.attributes.auth_config_id,
   properties:   PluginConfigurations.fromJSON(data.attributes.properties)
-});
-
-Roles.Role.GoCD.fromJSON = (data = {}) => new Roles.Role.GoCD({
-  name:  data.name,
-  type:  data.type,
-  users: data.attributes.users
 });
 
 Roles.Types = {

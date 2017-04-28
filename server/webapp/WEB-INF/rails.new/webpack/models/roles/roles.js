@@ -105,9 +105,34 @@ Roles.Role.GoCD = function (data) {
   Roles.Role.call(this, "gocd", data);
   this.users = Stream(s.defaultToIfBlank(data.users, []));
 
+  this.hasUsers = function () {
+    return !_.isEmpty(this.users());
+  };
+
+  this.addUser = function (username) {
+    if (_.isEmpty(username) || this.hasUser(username)) {
+      return;
+    }
+
+    this.users().push(username);
+    this.sortUsers();
+  };
+
+  this.deleteUser = function (username) {
+    this.users(_.remove(this.users(), (user) => user === username));
+  };
+
+  this.sortUsers = function () {
+    this.users(_.sortBy(this.users(), (user) => user.toLowerCase()))
+  };
+
+  this.hasUser = function (username) {
+    return _.some(this.users(), (user) => username.toLowerCase() === user.toLowerCase());
+  };
+
   this._attributesToJSON = function () {
     return {
-      users: this.users(),
+      users: this.users()
     };
   };
 };

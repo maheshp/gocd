@@ -16,7 +16,48 @@
 
 package com.thoughtworks.go.config;
 
+import com.thoughtworks.go.domain.config.Configuration;
+import com.thoughtworks.go.domain.config.ConfigurationProperty;
+import com.thoughtworks.go.plugin.access.secrets.SecretsMetadataStore;
+import com.thoughtworks.go.plugin.domain.secrets.SecretsPluginInfo;
+
+import static java.util.Objects.isNull;
+
+@ConfigTag("secretConfig")
+@ConfigCollection(value = ConfigurationProperty.class)
 public class SecretConfig extends PluginProfile {
+    @ConfigSubtag
+    private Configuration configuration = new Configuration();
+
+    @ConfigSubtag
+    private Rules rules = new Rules();
+
+    @ConfigAttribute(value = "description", allowNull = true)
+    private String description;
+
+    public SecretConfig() {
+    }
+
+    public SecretConfig(String id, String pluginId, ConfigurationProperty... configurationProperties) {
+        super(id, pluginId, configurationProperties);
+    }
+
+    public Configuration getConfiguration() {
+        return configuration;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public Rules getRules() {
+        return rules;
+    }
+
+    public void setRules(Rules rules) {
+        this.rules = rules;
+    }
+
     @Override
     protected String getObjectDescription() {
         return "Secret configuration";
@@ -24,11 +65,23 @@ public class SecretConfig extends PluginProfile {
 
     @Override
     protected boolean isSecure(String key) {
-        return false;
+        SecretsPluginInfo pluginInfo = this.metadataStore().getPluginInfo(getPluginId());
+
+        if (pluginInfo == null
+                || pluginInfo.getSecretsConfigSettings() == null
+                || pluginInfo.getSecretsConfigSettings().getConfiguration(key) == null) {
+            return false;
+        }
+
+        return pluginInfo.getSecretsConfigSettings().getConfiguration(key).isSecure();
     }
 
     @Override
     protected boolean hasPluginInfo() {
-        return false;
+        return !isNull(this.metadataStore().getPluginInfo(getPluginId()));
+    }
+
+    private SecretsMetadataStore metadataStore() {
+        return SecretsMetadataStore.instance();
     }
 }

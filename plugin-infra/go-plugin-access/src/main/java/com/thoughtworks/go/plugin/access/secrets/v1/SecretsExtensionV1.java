@@ -97,7 +97,7 @@ public class SecretsExtensionV1 implements VersionedSecretsExtension {
     }
 
     @Override
-    public List<Secret> lookupSecrets(String pluginId, List<String> keys, SecretConfig secretConfig) {
+    public List<Secret> lookupSecrets(String pluginId, SecretConfig secretConfig, List<String> keys) {
         return pluginRequestHelper.submitRequest(pluginId, REQUEST_LOOKUP_SECRETS,
                 new DefaultPluginInteractionCallback<List<Secret>>() {
                     @Override

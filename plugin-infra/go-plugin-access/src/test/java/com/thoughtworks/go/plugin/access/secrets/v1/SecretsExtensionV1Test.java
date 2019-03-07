@@ -128,7 +128,7 @@ public class SecretsExtensionV1Test {
         String responseBody = "[{\"key\":\"key1\",\"value\":\"secret1\"},{\"key\":\"key2\",\"value\":\"secret2\"}]";
         when(pluginManager.submitTo(eq(PLUGIN_ID), eq(SECRETS_EXTENSION), requestArgumentCaptor.capture())).thenReturn(DefaultGoPluginApiResponse.success(responseBody));
 
-        List<Secret> secrets = secretsExtensionV1.lookupSecrets(PLUGIN_ID, asList("key1", "key2"), new SecretConfig());
+        List<Secret> secrets = secretsExtensionV1.lookupSecrets(PLUGIN_ID, new SecretConfig(), asList("key1", "key2"));
 
         assertThat(secrets.size(), is(2));
         assertThat(secrets, containsInAnyOrder(
